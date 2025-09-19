@@ -99,7 +99,7 @@ class EchologRecorder:
         # Return first available device
         return devices[0]['name'] if devices else None
     
-    def start_recording(self, session_id: str, output_dir: Optional[str] = None) -> bool:
+    def start_recording(self, session_id: str, output_dir: Optional[str] = None, test_mode: bool = False) -> bool:
         """Start recording audio with ffmpeg."""
         if self.recording:
             print("Error: Already recording!")
@@ -125,7 +125,12 @@ class EchologRecorder:
         print(f"Output directory: {output_path}")
         
         # Build ffmpeg command
-        segment_duration = self.config.getint('recording', 'segment_duration')
+        if test_mode:
+            segment_duration = 60  # 1 minute for test mode
+            print("🧪 TEST MODE: Using 1-minute segments")
+        else:
+            segment_duration = self.config.getint('recording', 'segment_duration')
+        
         sample_rate = self.config.get('recording', 'sample_rate')
         channels = self.config.get('recording', 'channels')
         format_type = self.config.get('recording', 'format')
@@ -161,7 +166,10 @@ class EchologRecorder:
             self.recording = True
             print("Recording started successfully!")
             print(f"Process ID: {self.ffmpeg_process.pid}")
-            print("Note: Check the output directory for new chunk files every 15 minutes")
+            if test_mode:
+                print("Note: Check the output directory for new chunk files every 1 minute")
+            else:
+                print("Note: Check the output directory for new chunk files every 15 minutes")
             return True
             
         except FileNotFoundError:
@@ -251,6 +259,8 @@ def main():
     parser.add_argument('--output-dir', '-o', help='Output directory for recordings')
     parser.add_argument('--config', '-c', default='echolog.conf', 
                        help='Configuration file path')
+    parser.add_argument('--test', '-t', action='store_true',
+                       help='Test mode: use 1-minute segments instead of 15-minute segments')
     
     args = parser.parse_args()
     
@@ -269,7 +279,7 @@ def main():
             print("Error: --session-id is required for start action")
             sys.exit(1)
         
-        success = recorder.start_recording(args.session_id, args.output_dir)
+        success = recorder.start_recording(args.session_id, args.output_dir, args.test)
         if not success:
             sys.exit(1)
         

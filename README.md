@@ -46,14 +46,24 @@ A Python wrapper around ffmpeg for recording and segmenting audio from system au
    python echolog.py start --session-id "meeting_2025-01-19"
    ```
 
-3. **Stop recording:**
+3. **Start recording in test mode (1-minute segments):**
+   ```bash
+   python echolog.py start --session-id "test_session" --test
+   ```
+
+4. **Stop recording:**
    ```bash
    python echolog.py stop
    ```
 
-4. **Check recording status:**
+5. **Check recording status:**
    ```bash
    python echolog.py status
+   ```
+
+6. **List all recording files:**
+   ```bash
+   python echolog.py files
    ```
 
 ## Configuration
@@ -86,6 +96,11 @@ python echolog.py stop
 ### Custom Output Directory
 ```bash
 python echolog.py start -s "session_01" -o "/path/to/recordings"
+```
+
+### Test Mode (1-minute segments)
+```bash
+python echolog.py start -s "test_session" -t
 ```
 
 ### Check Status
