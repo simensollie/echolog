@@ -134,6 +134,12 @@ Recordings are organized as follows:
 - Make sure your user is in the `audio` group
 - Check PulseAudio permissions
 
+### Last Segment Duration Issue
+- When stopping recording mid-segment, the last chunk may show incorrect duration metadata
+- This is normal behavior - the file contains all recorded audio
+- The duration shown in media players may be longer than actual content
+- Use `python echolog.py files` to check actual file sizes
+
 ## Development
 
 ### Running Tests

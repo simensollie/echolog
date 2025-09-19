@@ -147,6 +147,8 @@ class EchologRecorder:
             '-f', 'segment',
             '-segment_time', str(segment_duration),
             '-reset_timestamps', '1',
+            '-avoid_negative_ts', 'make_zero',
+            '-fflags', '+genpts',
             '-y',  # Overwrite output files
             output_pattern
         ]
@@ -186,11 +188,13 @@ class EchologRecorder:
             return False
         
         try:
+            print("Stopping recording gracefully...")
+            
             # Send SIGTERM to the process group
             os.killpg(os.getpgid(self.ffmpeg_process.pid), signal.SIGTERM)
             
-            # Wait for process to terminate
-            self.ffmpeg_process.wait(timeout=5)
+            # Wait for process to terminate with longer timeout for proper finalization
+            self.ffmpeg_process.wait(timeout=10)
             
             # Check for any errors
             stderr_output = self.ffmpeg_process.stderr.read().decode('utf-8')
@@ -200,9 +204,13 @@ class EchologRecorder:
             self.recording = False
             self.ffmpeg_process = None
             print("Recording stopped successfully!")
+            
+            # Check if we need to fix the last segment
+            self._fix_last_segment_metadata()
             return True
             
         except subprocess.TimeoutExpired:
+            print("Process didn't stop gracefully, force stopping...")
             # Force kill if it doesn't stop gracefully
             os.killpg(os.getpgid(self.ffmpeg_process.pid), signal.SIGKILL)
             self.ffmpeg_process = None
@@ -248,6 +256,43 @@ class EchologRecorder:
         pattern = f"{self.session_id.split('_')[0]}_*_chunk_*.flac"
         files = list(session_dir.glob(pattern))
         return sorted([f.name for f in files])
+    
+    def _fix_last_segment_metadata(self):
+        """Fix metadata for the last segment if it was stopped mid-segment."""
+        if not self.session_id:
+            return
+        
+        try:
+            # Get the output directory
+            output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
+            session_dir = Path(output_dir) / self.session_id.split('_')[0]
+            
+            if not session_dir.exists():
+                return
+            
+            # Find all chunk files
+            pattern = f"{self.session_id.split('_')[0]}_*_chunk_*.flac"
+            files = sorted(session_dir.glob(pattern))
+            
+            if len(files) < 2:
+                return  # Need at least 2 files to compare
+            
+            # Check if the last file is unusually large (indicating mid-segment stop)
+            last_file = files[-1]
+            second_last_file = files[-2]
+            
+            last_size = last_file.stat().st_size
+            second_last_size = second_last_file.stat().st_size
+            
+            # If last file is significantly larger than the second last, it might be mid-segment
+            if last_size > second_last_size * 1.5:  # 50% larger
+                print(f"⚠️  Last segment appears to be incomplete: {last_file.name}")
+                print(f"   Size: {last_size / (1024*1024):.1f} MB (expected ~{second_last_size / (1024*1024):.1f} MB)")
+                print("   This is normal when stopping mid-segment.")
+                print("   The file contains all recorded audio but metadata may be incorrect.")
+                
+        except Exception as e:
+            print(f"Warning: Could not check last segment metadata: {e}")
 
 
 def main():
