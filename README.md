@@ -36,6 +36,43 @@ A Python wrapper around ffmpeg for recording and segmenting audio from system au
 
 ## Quick Start
 
+### Using Makefile (Recommended)
+
+1. **Install and set up:**
+   ```bash
+   make install
+   ```
+
+2. **Check available audio devices:**
+   ```bash
+   make devices
+   ```
+
+3. **Start recording:**
+   ```bash
+   make start meeting_2025-01-19
+   ```
+
+4. **Test mode (1-minute segments):**
+   ```bash
+   make test
+   # or
+   make start test_session TEST=true
+   ```
+
+5. **Stop recording:**
+   ```bash
+   make stop
+   ```
+
+6. **Check status and files:**
+   ```bash
+   make status
+   make files
+   ```
+
+### Using Python directly
+
 1. **Check available audio devices:**
    ```bash
    python echolog.py devices
@@ -140,10 +177,49 @@ Recordings are organized as follows:
 - The duration shown in media players may be longer than actual content
 - Use `python echolog.py files` to check actual file sizes
 
+## Makefile Commands
+
+The Makefile provides convenient shortcuts for common tasks:
+
+```bash
+# Show all available commands
+make help
+
+# Install dependencies
+make install
+
+# Run test recording (1-minute segments)
+make test
+
+# Start recording with session name
+make start my_meeting
+
+# Start test mode recording
+make start test_session TEST=true
+
+# Stop current recording
+make stop
+
+# Show status and files
+make status
+make files
+
+# List audio devices
+make devices
+
+# Clean up temporary files
+make clean
+
+# Show system info
+make info
+```
+
 ## Development
 
 ### Running Tests
 ```bash
+make test
+# or
 pytest
 ```
 
@@ -151,6 +227,7 @@ pytest
 - `echolog.py` - Main application and EchologRecorder class
 - `echolog.conf` - Configuration file
 - `requirements.txt` - Python dependencies
+- `Makefile` - Convenient build and run commands
 
 ## License
 
