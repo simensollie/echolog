@@ -3,10 +3,10 @@
 # Core dependencies
 psutil>=5.9.0          # Process management and system monitoring
 configparser>=5.3.0    # Configuration file handling
-argparse               # Command line argument parsing (built-in)
+# argparse is built-in with Python, no need to install
 
 # Optional GUI dependencies
-tkinter                # GUI framework (built-in with Python)
+# tkinter is built-in with Python, no need to install
 
 # Audio processing (if needed for post-processing)
 pydub>=0.25.1          # Audio file manipulation
