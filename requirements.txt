@@ -1,0 +1,17 @@
+# Echolog - Audio Recording Application Dependencies
+
+# Core dependencies
+psutil>=5.9.0          # Process management and system monitoring
+configparser>=5.3.0    # Configuration file handling
+argparse               # Command line argument parsing (built-in)
+
+# Optional GUI dependencies
+tkinter                # GUI framework (built-in with Python)
+
+# Audio processing (if needed for post-processing)
+pydub>=0.25.1          # Audio file manipulation
+mutagen>=1.45.0        # Audio metadata handling
+
+# Development dependencies
+pytest>=7.0.0          # Testing framework
+pytest-cov>=4.0.0      # Coverage reporting
