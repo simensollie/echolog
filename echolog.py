@@ -160,6 +160,8 @@ class EchologRecorder:
             
             self.recording = True
             print("Recording started successfully!")
+            print(f"Process ID: {self.ffmpeg_process.pid}")
+            print("Note: Check the output directory for new chunk files every 15 minutes")
             return True
             
         except FileNotFoundError:
@@ -181,6 +183,11 @@ class EchologRecorder:
             
             # Wait for process to terminate
             self.ffmpeg_process.wait(timeout=5)
+            
+            # Check for any errors
+            stderr_output = self.ffmpeg_process.stderr.read().decode('utf-8')
+            if stderr_output and "error" in stderr_output.lower():
+                print(f"ffmpeg stderr: {stderr_output}")
             
             self.recording = False
             self.ffmpeg_process = None
@@ -216,12 +223,29 @@ class EchologRecorder:
             'session_id': self.session_id,
             'process_id': self.ffmpeg_process.pid if self.ffmpeg_process else None
         }
+    
+    def check_recording_files(self) -> List[str]:
+        """Check what recording files have been created."""
+        if not self.session_id:
+            return []
+        
+        # Get the output directory from config
+        output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
+        session_dir = Path(output_dir) / self.session_id.split('_')[0]  # Get session name without timestamp
+        
+        if not session_dir.exists():
+            return []
+        
+        # Find all files matching the session pattern
+        pattern = f"{self.session_id.split('_')[0]}_*_chunk_*.flac"
+        files = list(session_dir.glob(pattern))
+        return sorted([f.name for f in files])
 
 
 def main():
     """Main entry point for the application."""
     parser = argparse.ArgumentParser(description='Echolog - Audio Recording Application')
-    parser.add_argument('action', choices=['start', 'stop', 'status', 'devices'], 
+    parser.add_argument('action', choices=['start', 'stop', 'status', 'devices', 'files'], 
                        help='Action to perform')
     parser.add_argument('--session-id', '-s', help='Session identifier for recording')
     parser.add_argument('--output-dir', '-o', help='Output directory for recordings')
@@ -267,6 +291,36 @@ def main():
             print(f"Session ID: {status['session_id']}")
         if status['process_id']:
             print(f"Process ID: {status['process_id']}")
+        
+        # Show created files
+        files = recorder.check_recording_files()
+        if files:
+            print(f"Created files ({len(files)}):")
+            for file in files:
+                print(f"  - {file}")
+        else:
+            print("No recording files found yet.")
+    
+    elif args.action == 'files':
+        # Show all recording files
+        output_dir = os.path.expanduser(recorder.config.get('recording', 'output_dir'))
+        recordings_dir = Path(output_dir)
+        
+        if not recordings_dir.exists():
+            print(f"No recordings directory found at {output_dir}")
+            return
+        
+        print(f"Recording files in {output_dir}:")
+        for session_dir in recordings_dir.iterdir():
+            if session_dir.is_dir():
+                print(f"\nSession: {session_dir.name}")
+                flac_files = list(session_dir.glob("*.flac"))
+                if flac_files:
+                    for file in sorted(flac_files):
+                        size_mb = file.stat().st_size / (1024 * 1024)
+                        print(f"  - {file.name} ({size_mb:.1f} MB)")
+                else:
+                    print("  No FLAC files found")
 
 
 if __name__ == '__main__':
