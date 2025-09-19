@@ -99,20 +99,20 @@ class EchologRecorder:
         # Return first available device
         return devices[0]['name'] if devices else None
     
-    def start_recording(self, lecture_id: str, output_dir: Optional[str] = None) -> bool:
+    def start_recording(self, session_id: str, output_dir: Optional[str] = None) -> bool:
         """Start recording audio with ffmpeg."""
         if self.recording:
             print("Error: Already recording!")
             return False
         
         # Generate session ID
-        self.session_id = f"{lecture_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.session_id = f"{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         # Set up output directory
         if output_dir is None:
             output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
         
-        output_path = Path(output_dir) / lecture_id
+        output_path = Path(output_dir) / session_id
         output_path.mkdir(parents=True, exist_ok=True)
         
         # Get audio device
@@ -223,7 +223,7 @@ def main():
     parser = argparse.ArgumentParser(description='Echolog - Audio Recording Application')
     parser.add_argument('action', choices=['start', 'stop', 'status', 'devices'], 
                        help='Action to perform')
-    parser.add_argument('--lecture-id', '-l', help='Lecture identifier for recording')
+    parser.add_argument('--session-id', '-s', help='Session identifier for recording')
     parser.add_argument('--output-dir', '-o', help='Output directory for recordings')
     parser.add_argument('--config', '-c', default='echolog.conf', 
                        help='Configuration file path')
@@ -241,11 +241,11 @@ def main():
         return
     
     elif args.action == 'start':
-        if not args.lecture_id:
-            print("Error: --lecture-id is required for start action")
+        if not args.session_id:
+            print("Error: --session-id is required for start action")
             sys.exit(1)
         
-        success = recorder.start_recording(args.lecture_id, args.output_dir)
+        success = recorder.start_recording(args.session_id, args.output_dir)
         if not success:
             sys.exit(1)
         
