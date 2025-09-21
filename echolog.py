@@ -11,7 +11,6 @@ import argparse
 import configparser
 import time
 import signal
-import psutil
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
@@ -34,7 +33,7 @@ class EchologRecorder:
         # Default configuration
         default_config = {
             'recording': {
-                'segment_duration': '900',  # 15 minutes in seconds
+                'segment_duration': '300',  # 5 minutes in seconds
                 'sample_rate': '44100',
                 'channels': '2',  # stereo
                 'format': 'flac',
@@ -74,10 +73,11 @@ class EchologRecorder:
             for line in result.stdout.strip().split('\n'):
                 if 'monitor' in line:
                     parts = line.split('\t')
-                    if len(parts) >= 2:
+                    if len(parts) >= 5:  # Ensure we have status information
                         devices.append({
                             'name': parts[1],
-                            'id': parts[0]
+                            'id': parts[0],
+                            'status': parts[4]  # RUNNING, SUSPENDED, etc.
                         })
             
             return devices
@@ -90,16 +90,27 @@ class EchologRecorder:
         devices = self.detect_audio_devices()
         if not devices:
             return None
-            
-        # Look for common monitor device patterns
+        
+        # First, try to find a RUNNING monitor device
         for device in devices:
-            if 'monitor' in device['name'].lower():
+            if 'monitor' in device['name'].lower() and device.get('status') == 'RUNNING':
+                print(f"Selected RUNNING device: {device['name']}")
                 return device['name']
         
-        # Return first available device
-        return devices[0]['name'] if devices else None
+        # If no running device found, look for any monitor device
+        for device in devices:
+            if 'monitor' in device['name'].lower():
+                print(f"Selected SUSPENDED device: {device['name']} (status: {device.get('status', 'UNKNOWN')})")
+                return device['name']
+        
+        # Return first available device as fallback
+        if devices:
+            print(f"Fallback to first device: {devices[0]['name']}")
+            return devices[0]['name']
+        
+        return None
     
-    def start_recording(self, session_id: str, output_dir: Optional[str] = None, test_mode: bool = False) -> bool:
+    def start_recording(self, session_id: str, output_dir: Optional[str] = None, test_mode: bool = False, custom_duration: Optional[int] = None) -> bool:
         """Start recording audio with ffmpeg."""
         if self.recording:
             print("Error: Already recording!")
@@ -125,7 +136,10 @@ class EchologRecorder:
         print(f"Output directory: {output_path}")
         
         # Build ffmpeg command
-        if test_mode:
+        if custom_duration:
+            segment_duration = custom_duration
+            print(f"📏 Using custom segment duration: {segment_duration} seconds")
+        elif test_mode:
             segment_duration = 60  # 1 minute for test mode
             print("🧪 TEST MODE: Using 1-minute segments")
         else:
@@ -146,9 +160,8 @@ class EchologRecorder:
             '-c:a', 'flac' if format_type == 'flac' else 'libmp3lame',
             '-f', 'segment',
             '-segment_time', str(segment_duration),
+            '-segment_format', format_type,  # Explicitly specify segment format
             '-reset_timestamps', '1',
-            '-avoid_negative_ts', 'make_zero',
-            '-fflags', '+genpts',
             '-y',  # Overwrite output files
             output_pattern
         ]
@@ -168,10 +181,11 @@ class EchologRecorder:
             self.recording = True
             print("Recording started successfully!")
             print(f"Process ID: {self.ffmpeg_process.pid}")
-            if test_mode:
-                print("Note: Check the output directory for new chunk files every 1 minute")
+            if segment_duration < 60:
+                print(f"Note: Check the output directory for new chunk files every {segment_duration} seconds")
             else:
-                print("Note: Check the output directory for new chunk files every 15 minutes")
+                minutes = segment_duration // 60
+                print(f"Note: Check the output directory for new chunk files every {minutes} minute{'s' if minutes != 1 else ''}")
             return True
             
         except FileNotFoundError:
@@ -305,7 +319,9 @@ def main():
     parser.add_argument('--config', '-c', default='echolog.conf', 
                        help='Configuration file path')
     parser.add_argument('--test', '-t', action='store_true',
-                       help='Test mode: use 1-minute segments instead of 15-minute segments')
+                       help='Test mode: use 1-minute segments instead of configured duration')
+    parser.add_argument('--segment-duration', '-d', type=int,
+                       help='Custom segment duration in seconds (overrides config)')
     
     args = parser.parse_args()
     
@@ -324,7 +340,7 @@ def main():
             print("Error: --session-id is required for start action")
             sys.exit(1)
         
-        success = recorder.start_recording(args.session_id, args.output_dir, args.test)
+        success = recorder.start_recording(args.session_id, args.output_dir, args.test, args.segment_duration)
         if not success:
             sys.exit(1)
         

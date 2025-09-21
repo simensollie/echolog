@@ -61,7 +61,30 @@ This backlog contains future enhancements and features for the Echolog audio rec
   - [ ] Optional feature (not enabled by default)
 - **Estimated Effort**: 3-4 hours
 
-#### 4. Multiple Audio Format Support
+#### 4. Recording Session Logs
+- **Description**: Create detailed log files for each recording session
+- **Use Cases**:
+  - Debug recording issues
+  - Monitor recording status
+  - Track session metadata
+  - Troubleshooting audio problems
+- **Implementation**:
+  - Create log file in each recording directory
+  - Log session start/stop times
+  - Log audio device information
+  - Log ffmpeg command and output
+  - Log chunk creation events
+  - Log any errors or warnings
+- **Acceptance Criteria**:
+  - [ ] Log file created in recording directory
+  - [ ] Session metadata logged (start time, device, settings)
+  - [ ] Chunk creation events logged
+  - [ ] Error/warning messages captured
+  - [ ] Configurable log level (debug, info, warning, error)
+  - [ ] Log rotation for long sessions
+- **Estimated Effort**: 2-3 hours
+
+#### 5. Multiple Audio Format Support
 - **Description**: Support additional audio formats beyond FLAC
 - **Use Cases**:
   - Smaller file sizes (MP3)
@@ -80,7 +103,7 @@ This backlog contains future enhancements and features for the Echolog audio rec
 
 ### 🟢 Low Priority
 
-#### 5. GUI Interface
+#### 6. GUI Interface
 - **Description**: Create a simple graphical user interface
 - **Use Cases**:
   - Users who prefer GUI over CLI
@@ -98,7 +121,7 @@ This backlog contains future enhancements and features for the Echolog audio rec
   - [ ] Configuration management
 - **Estimated Effort**: 1-2 days
 
-#### 6. Audio Device Selection
+#### 7. Audio Device Selection
 - **Description**: Allow manual selection of audio input device
 - **Use Cases**:
   - Multiple audio devices available
@@ -115,7 +138,7 @@ This backlog contains future enhancements and features for the Echolog audio rec
   - [ ] Fallback to auto-detection
 - **Estimated Effort**: 1-2 hours
 
-#### 7. Recording Metadata
+#### 8. Recording Metadata
 - **Description**: Add metadata to recorded files
 - **Use Cases**:
   - File organization
@@ -132,7 +155,7 @@ This backlog contains future enhancements and features for the Echolog audio rec
   - [ ] Configurable metadata fields
 - **Estimated Effort**: 2-3 hours
 
-#### 8. Batch Processing
+#### 9. Batch Processing
 - **Description**: Process multiple recorded segments
 - **Use Cases**:
   - Combine segments into single file
@@ -151,7 +174,7 @@ This backlog contains future enhancements and features for the Echolog audio rec
 
 ### 🔮 Future Considerations
 
-#### 9. Cloud Storage Integration
+#### 10. Cloud Storage Integration
 - **Description**: Automatic upload to cloud storage
 - **Use Cases**:
   - Backup recordings
@@ -163,7 +186,7 @@ This backlog contains future enhancements and features for the Echolog audio rec
   - Configuration for cloud settings
 - **Estimated Effort**: 3-5 days
 
-#### 10. Audio Transcription
+#### 11. Audio Transcription
 - **Description**: Automatic transcription of recorded audio
 - **Use Cases**:
   - Meeting notes
@@ -175,7 +198,7 @@ This backlog contains future enhancements and features for the Echolog audio rec
   - Search functionality
 - **Estimated Effort**: 5-7 days
 
-#### 11. Cross-Platform Support
+#### 12. Cross-Platform Support
 - **Description**: Support for Windows and macOS
 - **Use Cases**:
   - Broader user base
