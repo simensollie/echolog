@@ -84,7 +84,13 @@ A Python wrapper around ffmpeg for recording and segmenting audio from system au
    python echolog.py start --session-id "meeting_2025-01-19"
    ```
 
-3. **Start recording in test mode (1-minute segments):**
+3. **Start recording with a specific device (override):**
+   ```bash
+   python echolog.py start -s "my_session" --device "alsa_output.usb-...analog-stereo.monitor"
+   ```
+   Tip: find devices with `python echolog.py devices`.
+
+4. **Start recording in test mode (1-minute segments):**
    ```bash
    python echolog.py start --session-id "test_session" --test
    ```

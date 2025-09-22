@@ -198,7 +198,30 @@ This backlog contains future enhancements and features for the Echolog audio rec
   - Search functionality
 - **Estimated Effort**: 5-7 days
 
-#### 12. Cross-Platform Support
+#### 12. Headless Browser Recording
+- **Description**: Add URL support to run video in headless browser and record audio
+- **Use Cases**:
+  - Record online lectures, webinars, or streaming content
+  - Capture audio from web-based presentations
+  - Automated recording of scheduled online events
+  - Record audio from video calls or meetings
+- **Implementation**:
+  - Add `--url` CLI argument to specify webpage/video URL
+  - Use headless browser (Chrome/Firefox) to load content
+  - Capture browser audio output using PulseAudio
+  - Optional video recording alongside audio
+  - Handle authentication and login flows
+- **Acceptance Criteria**:
+  - [ ] CLI accepts URL parameter (e.g., `--url "https://example.com/video"`)
+  - [ ] Headless browser launches and loads content
+  - [ ] Audio from browser is captured and recorded
+  - [ ] Proper handling of video players and streaming content
+  - [ ] Optional video recording capability
+  - [ ] Error handling for failed page loads or audio issues
+  - [ ] Support for common video platforms (YouTube, Vimeo, etc.)
+- **Estimated Effort**: 3-5 days
+
+#### 13. Cross-Platform Support
 - **Description**: Support for Windows and macOS
 - **Use Cases**:
   - Broader user base

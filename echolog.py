@@ -162,23 +162,60 @@ class EchologRecorder:
             print("Error: Could not detect audio devices. Make sure PulseAudio is running.")
             return []
     
+    def _get_default_sink_monitor(self) -> Optional[str]:
+        """Return the default sink's monitor source name if available.
+
+        Strategy: parse `pactl info` for Default Sink, then look for a source
+        named `<default_sink>.monitor` in the list of sources.
+        """
+        try:
+            info = subprocess.run(['pactl', 'info'], capture_output=True, text=True, check=True)
+            default_sink = None
+            for line in info.stdout.splitlines():
+                if line.strip().lower().startswith('default sink:'):
+                    default_sink = line.split(':', 1)[1].strip()
+                    break
+            if not default_sink:
+                return None
+
+            monitor_candidate = f"{default_sink}.monitor"
+            for dev in self.detect_audio_devices():
+                if dev.get('name') == monitor_candidate:
+                    return monitor_candidate
+            return None
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return None
+
     def get_default_monitor_device(self) -> Optional[str]:
         """Get the default monitor device for recording."""
+        # If user specified a device in config, honor it
+        configured = (self.config.get('audio', 'device_name', fallback='') or '').strip()
+        if configured:
+            print(f"Using configured device: {configured}")
+            return configured
+
+        # Prefer the default sink's monitor
+        sink_monitor = self._get_default_sink_monitor()
+        if sink_monitor:
+            print(f"Selected default sink monitor: {sink_monitor}")
+            return sink_monitor
+
         devices = self.detect_audio_devices()
         if not devices:
             return None
         
-        # First, try to find a RUNNING monitor device
-        for device in devices:
-            if 'monitor' in device['name'].lower() and device.get('status') == 'RUNNING':
-                print(f"Selected RUNNING device: {device['name']}")
-                return device['name']
+        monitors = [d for d in devices if 'monitor' in d['name'].lower()]
+        # Prefer RUNNING monitors, then IDLE, then any monitor
+        for state in ('RUNNING', 'IDLE'):
+            for device in monitors:
+                if device.get('status') == state:
+                    print(f"Selected {state} monitor: {device['name']}")
+                    return device['name']
         
         # If no running device found, look for any monitor device
-        for device in devices:
-            if 'monitor' in device['name'].lower():
-                print(f"Selected SUSPENDED device: {device['name']} (status: {device.get('status', 'UNKNOWN')})")
-                return device['name']
+        for device in monitors:
+            print(f"Selected SUSPENDED monitor: {device['name']} (status: {device.get('status', 'UNKNOWN')})")
+            return device['name']
         
         # Return first available device as fallback
         if devices:
@@ -584,6 +621,7 @@ def main():
     parser.add_argument('--output-dir', '-o', help='Output directory for recordings')
     parser.add_argument('--config', '-c', default='echolog.conf', 
                        help='Configuration file path')
+    parser.add_argument('--device', '-D', help='Override PulseAudio source (e.g., <sink_name>.monitor)')
     parser.add_argument('--test', '-t', action='store_true',
                        help='Test mode: use 1-minute segments instead of configured duration')
     parser.add_argument('--segment-duration', '-d', type=int,
@@ -628,6 +666,12 @@ def main():
             print("Error: --session-id is required for start action")
             sys.exit(1)
         
+        # Device CLI override takes precedence
+        if args.device:
+            if not recorder.config.has_section('audio'):
+                recorder.config.add_section('audio')
+            recorder.config.set('audio', 'device_name', args.device)
+
         success = recorder.start_recording(args.session_id, args.output_dir, args.test, args.segment_duration)
         if not success:
             sys.exit(1)
