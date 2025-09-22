@@ -7,7 +7,7 @@ A Python wrapper around ffmpeg for recording and segmenting audio from system au
 - **Hybrid Approach**: Uses ffmpeg for robust audio capture and Python for user interface
 - **Automatic Segmentation**: Records audio in configurable time segments (default: 15 minutes)
 - **PulseAudio Integration**: Works seamlessly with Linux audio systems
-- **FLAC Format**: High-quality lossless compression
+- **Ogg Opus Format**: Speech-optimized, compact files by default
 - **Easy Configuration**: Simple configuration file for customization
 - **Device Detection**: Automatically finds the best audio source
  - **Session Logs**: Per-session rotating logs with metadata, ffmpeg output, and events
@@ -111,9 +111,9 @@ Edit `echolog.conf` to customize settings:
 ```ini
 [recording]
 segment_duration = 900    # 15 minutes
-sample_rate = 44100      # 44.1 kHz
-channels = 2             # Stereo
-format = flac            # Output format
+sample_rate = 16000      # 16 kHz (speech)
+channels = 1             # Mono (speech)
+format = ogg             # Ogg container with Opus codec
 output_dir = ~/recordings
 
 [audio]
@@ -174,9 +174,9 @@ Recordings are organized as follows:
 ```
 ~/recordings/
 └── session_01/
-    ├── session_01_20250119_143022_chunk_001.flac
-    ├── session_01_20250119_143022_chunk_002.flac
-    └── session_01_20250119_143022_chunk_003.flac
+    ├── session_01_20250119_143022_chunk_001.ogg
+    ├── session_01_20250119_143022_chunk_002.ogg
+    └── session_01_20250119_143022_chunk_003.ogg
     └── session.log
 ```
 

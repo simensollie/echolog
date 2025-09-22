@@ -45,9 +45,9 @@ class EchologRecorder:
         default_config = {
             'recording': {
                 'segment_duration': '300',  # 5 minutes in seconds
-                'sample_rate': '44100',
-                'channels': '2',  # stereo
-                'format': 'flac',
+                'sample_rate': '16000',
+                'channels': '1',  # mono for speech
+                'format': 'ogg',  # ogg container with Opus codec
                 'output_dir': '~/recordings'
             },
             'audio': {
@@ -241,20 +241,30 @@ class EchologRecorder:
         
         output_pattern = str(output_path / f"{self.session_id}_chunk_%03d.{format_type}")
         
+        # Map requested format to codec/container specifics
+        codec = 'libopus' if format_type == 'ogg' else ('flac' if format_type == 'flac' else 'libmp3lame')
+        # Choose a speech-friendly bitrate for Opus if applicable
+        bitrate = None
+        if codec == 'libopus':
+            # 24 kbps is a good default for speech; users can still change sample_rate/channels in config
+            bitrate = '24k'
+
         cmd = [
             'ffmpeg',
             '-f', 'pulse',
             '-i', device,
             '-ac', channels,
             '-ar', sample_rate,
-            '-c:a', 'flac' if format_type == 'flac' else 'libmp3lame',
+            '-c:a', codec,
             '-f', 'segment',
             '-segment_time', str(segment_duration),
             '-segment_format', format_type,  # Explicitly specify segment format
             '-reset_timestamps', '1',
             '-y',  # Overwrite output files
-            output_pattern
         ]
+        if bitrate:
+            cmd.extend(['-b:a', bitrate])
+        cmd.append(output_pattern)
         
         # Log session metadata before starting process
         if self.session_logger:
@@ -435,7 +445,7 @@ class EchologRecorder:
                     try:
                         output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
                         session_dir = Path(output_dir) / self.session_id.split('_')[0]
-                        all_chunks = sorted(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.flac"))
+                        all_chunks = sorted(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.{self.config.get('recording', 'format', fallback='ogg')}"))
                         if all_chunks:
                             last = all_chunks[-1].name
                             if last not in self._finalized_chunks:
@@ -447,7 +457,7 @@ class EchologRecorder:
                     # Count chunks for this session
                     output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
                     session_dir = Path(output_dir) / self.session_id.split('_')[0]
-                    files = list(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.flac"))
+                    files = list(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.{self.config.get('recording', 'format', fallback='ogg')}"))
                     count = len(files)
                     duration_s = 0.0
                     if self._recording_start_monotonic is not None:
@@ -523,7 +533,7 @@ class EchologRecorder:
             return []
         
         # Find all files matching the session pattern
-        pattern = f"{self.session_id.split('_')[0]}_*_chunk_*.flac"
+        pattern = f"{self.session_id.split('_')[0]}_*_chunk_*.{self.config.get('recording', 'format', fallback='ogg')}"
         files = list(session_dir.glob(pattern))
         return sorted([f.name for f in files])
     
@@ -665,13 +675,14 @@ def main():
         for session_dir in recordings_dir.iterdir():
             if session_dir.is_dir():
                 print(f"\nSession: {session_dir.name}")
-                flac_files = list(session_dir.glob("*.flac"))
-                if flac_files:
-                    for file in sorted(flac_files):
+                ext = recorder.config.get('recording', 'format', fallback='ogg')
+                fmt_files = list(session_dir.glob(f"*.{ext}"))
+                if fmt_files:
+                    for file in sorted(fmt_files):
                         size_mb = file.stat().st_size / (1024 * 1024)
                         print(f"  - {file.name} ({size_mb:.1f} MB)")
                 else:
-                    print("  No FLAC files found")
+                    print(f"  No {ext.upper()} files found")
 
 
 if __name__ == '__main__':
