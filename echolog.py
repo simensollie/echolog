@@ -11,9 +11,13 @@ import argparse
 import configparser
 import time
 import signal
+import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
+import threading
+import re
 
 
 class EchologRecorder:
@@ -25,6 +29,13 @@ class EchologRecorder:
         self.ffmpeg_process = None
         self.recording = False
         self.session_id = None
+        self.session_logger: Optional[logging.Logger] = None
+        self._stderr_thread: Optional[threading.Thread] = None
+        self._chunk_thread: Optional[threading.Thread] = None
+        self._known_chunks: set[str] = set()
+        self._finalized_chunks: set[str] = set()
+        self._recording_start_monotonic: Optional[float] = None
+        self._session_dir: Optional[Path] = None
         
     def _load_config(self) -> configparser.ConfigParser:
         """Load configuration from file or create default."""
@@ -60,6 +71,72 @@ class EchologRecorder:
         with open(self.config_file, 'w') as f:
             config.write(f)
     
+    def _init_session_logger(self, session_dir: Path, level: int = logging.INFO,
+                              max_bytes: int = 5 * 1024 * 1024, backup_count: int = 3) -> None:
+        """Initialize a rotating file logger for the current recording session.
+
+        Creates `session.log` under the provided `session_dir` with size-based rotation.
+        Uses UTC timestamps and a human-readable line format.
+        """
+        # Ensure directory exists
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        log_path = session_dir / "session.log"
+
+        logger_name = f"echolog.session.{self.session_id or 'unknown'}"
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(level)
+        logger.propagate = False
+
+        # Avoid duplicate handlers on repeated init
+        if logger.handlers:
+            self.session_logger = logger
+            return
+
+        handler = RotatingFileHandler(str(log_path), maxBytes=max_bytes, backupCount=backup_count)
+
+        class UtcFormatter(logging.Formatter):
+            converter = time.gmtime
+
+        formatter = UtcFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s", "%Y-%m-%dT%H:%M:%SZ")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+        self.session_logger = logger
+
+    def _get_logging_config(self):
+        """Resolve logging configuration from config with defaults."""
+        level_str = (self.config.get('logging', 'level', fallback='info') or 'info').lower()
+        level_map = {
+            'debug': logging.DEBUG,
+            'info': logging.INFO,
+            'warning': logging.WARNING,
+            'error': logging.ERROR,
+        }
+        level = level_map.get(level_str, logging.INFO)
+        rotation = (self.config.get('logging', 'rotation', fallback='size') or 'size').lower()
+        max_bytes = self.config.getint('logging', 'max_bytes', fallback=5 * 1024 * 1024)
+        backup_count = self.config.getint('logging', 'backup_count', fallback=3)
+        utc = self.config.getboolean('logging', 'utc', fallback=True)
+        return {
+            'level': level,
+            'rotation': rotation,
+            'max_bytes': max_bytes,
+            'backup_count': backup_count,
+            'utc': utc,
+        }
+
+    def _flush_session_logger(self):
+        """Flush and close session logger handlers safely."""
+        if not self.session_logger:
+            return
+        for handler in list(self.session_logger.handlers):
+            try:
+                handler.flush()
+                handler.close()
+            except Exception:
+                pass
+
     def detect_audio_devices(self) -> List[Dict[str, str]]:
         """Detect available PulseAudio monitor sources."""
         try:
@@ -125,6 +202,19 @@ class EchologRecorder:
         
         output_path = Path(output_dir) / session_id
         output_path.mkdir(parents=True, exist_ok=True)
+        self._session_dir = output_path
+
+        # Initialize session logger with configured settings
+        log_cfg = self._get_logging_config()
+        self._init_session_logger(
+            output_path,
+            level=log_cfg['level'],
+            max_bytes=log_cfg['max_bytes'],
+            backup_count=log_cfg['backup_count']
+        )
+        if self.session_logger:
+            human_level = logging.getLevelName(log_cfg['level'])
+            self.session_logger.info(f"Logging to {output_path / 'session.log'} (level={human_level})")
         
         # Get audio device
         device = self.get_default_monitor_device()
@@ -166,8 +256,25 @@ class EchologRecorder:
             output_pattern
         ]
         
+        # Log session metadata before starting process
+        if self.session_logger:
+            meta = {
+                'session_id': self.session_id,
+                'device': device,
+                'sample_rate': sample_rate,
+                'channels': channels,
+                'format': format_type,
+                'segment_duration_s': segment_duration,
+                'output_dir': str(output_path),
+            }
+            meta_str = ' '.join([f"{k}={v}" for k, v in meta.items()])
+            self.session_logger.info(f"session metadata {meta_str}")
+
         print(f"Starting recording: {self.session_id}")
         print(f"Command: {' '.join(cmd)}")
+        if self.session_logger:
+            self.session_logger.info(f"session start id={self.session_id} device={device}")
+            self.session_logger.info(f"ffmpeg cmd={' '.join(cmd)}")
         
         try:
             # Start ffmpeg process
@@ -179,8 +286,31 @@ class EchologRecorder:
             )
             
             self.recording = True
+            self._recording_start_monotonic = time.monotonic()
             print("Recording started successfully!")
             print(f"Process ID: {self.ffmpeg_process.pid}")
+            if self.session_logger:
+                self.session_logger.info(f"process pid={self.ffmpeg_process.pid}")
+
+            # Start background stderr reader to capture ffmpeg output
+            try:
+                self._stderr_thread = threading.Thread(target=self._stream_ffmpeg_stderr, daemon=True)
+                self._stderr_thread.start()
+            except Exception as _thr_err:
+                if self.session_logger:
+                    self.session_logger.warning(f"stderr thread failed err={_thr_err}")
+
+            # Start background chunk watcher to log new chunk files
+            try:
+                self._chunk_thread = threading.Thread(
+                    target=self._watch_chunks,
+                    args=(output_path, f"{self.session_id}_chunk_*.{format_type}", segment_duration),
+                    daemon=True
+                )
+                self._chunk_thread.start()
+            except Exception as _ct_err:
+                if self.session_logger:
+                    self.session_logger.warning(f"chunk watcher failed err={_ct_err}")
             if segment_duration < 60:
                 print(f"Note: Check the output directory for new chunk files every {segment_duration} seconds")
             else:
@@ -194,6 +324,83 @@ class EchologRecorder:
         except Exception as e:
             print(f"Error starting recording: {e}")
             return False
+
+    def _stream_ffmpeg_stderr(self):
+        """Continuously read ffmpeg stderr and write to session logger.
+
+        Maps lines containing 'error' to ERROR, 'warn'/'warning' to WARNING.
+        All other lines are logged at DEBUG to reduce noise at higher levels.
+        """
+        if not self.ffmpeg_process or not self.session_logger:
+            return
+        try:
+            assert self.ffmpeg_process.stderr is not None
+            for raw in iter(self.ffmpeg_process.stderr.readline, b''):
+                if not raw:
+                    break
+                line = raw.decode('utf-8', errors='replace').strip()
+                if not line:
+                    continue
+                low = line.lower()
+                if 'error' in low:
+                    self.session_logger.error(f"ffmpeg {line}")
+                elif 'warn' in low:
+                    self.session_logger.warning(f"ffmpeg {line}")
+                else:
+                    # Only visible if logger level allows DEBUG
+                    self.session_logger.debug(f"ffmpeg {line}")
+        except Exception as e:
+            try:
+                self.session_logger.warning(f"stderr reader exception err={e}")
+            except Exception:
+                pass
+
+    def _watch_chunks(self, session_dir: Path, pattern: str, segment_duration: int):
+        """Poll the session directory for new chunk files, logging creation and final sizes.
+
+        Strategy: when chunk N appears, log its creation; also finalize chunk N-1 with
+        its final size if present and not already finalized. On stop, the last chunk
+        is finalized in stop flow.
+        """
+        chunk_index_re = re.compile(r"_chunk_(\d{3})\.")
+        try:
+            while self.recording:
+                files = sorted(session_dir.glob(pattern))
+                for f in files:
+                    name = f.name
+                    if name not in self._known_chunks:
+                        # First time seeing this chunk: creation
+                        try:
+                            size = f.stat().st_size
+                        except FileNotFoundError:
+                            size = 0
+                        self._known_chunks.add(name)
+                        if self.session_logger:
+                            self.session_logger.info(f"chunk created file={name} size={size}B")
+
+                        # Attempt to finalize previous chunk if applicable
+                        m = chunk_index_re.search(name)
+                        if m:
+                            try:
+                                cur_idx = int(m.group(1))
+                            except ValueError:
+                                cur_idx = None
+                            if cur_idx is not None and cur_idx > 0:
+                                prev_name = name.replace(f"_chunk_{cur_idx:03d}.", f"_chunk_{cur_idx-1:03d}.")
+                                if prev_name not in self._finalized_chunks:
+                                    prev_path = session_dir / prev_name
+                                    if prev_path.exists():
+                                        try:
+                                            final_size = prev_path.stat().st_size
+                                        except FileNotFoundError:
+                                            final_size = 0
+                                        if self.session_logger:
+                                            self.session_logger.info(f"chunk finalized file={prev_name} size={final_size}B")
+                                        self._finalized_chunks.add(prev_name)
+                time.sleep(min(2, max(1, segment_duration // 10)))
+        except Exception as e:
+            if self.session_logger:
+                self.session_logger.warning(f"chunk watcher exception err={e}")
     
     def stop_recording(self) -> bool:
         """Stop the current recording."""
@@ -221,6 +428,33 @@ class EchologRecorder:
             
             # Check if we need to fix the last segment
             self._fix_last_segment_metadata()
+            # Log stop summary
+            try:
+                if self.session_logger:
+                    # Finalize the last chunk size if not already
+                    try:
+                        output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
+                        session_dir = Path(output_dir) / self.session_id.split('_')[0]
+                        all_chunks = sorted(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.flac"))
+                        if all_chunks:
+                            last = all_chunks[-1].name
+                            if last not in self._finalized_chunks:
+                                final_size = all_chunks[-1].stat().st_size
+                                self.session_logger.info(f"chunk finalized file={last} size={final_size}B")
+                                self._finalized_chunks.add(last)
+                    except Exception:
+                        pass
+                    # Count chunks for this session
+                    output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
+                    session_dir = Path(output_dir) / self.session_id.split('_')[0]
+                    files = list(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.flac"))
+                    count = len(files)
+                    duration_s = 0.0
+                    if self._recording_start_monotonic is not None:
+                        duration_s = max(0.0, time.monotonic() - self._recording_start_monotonic)
+                    self.session_logger.info(f"session stop reason=user_request chunks={count} duration={duration_s:.1f}s")
+            finally:
+                self._flush_session_logger()
             return True
             
         except subprocess.TimeoutExpired:
@@ -230,9 +464,26 @@ class EchologRecorder:
             self.ffmpeg_process = None
             self.recording = False
             print("Recording force-stopped.")
+            try:
+                if self.session_logger:
+                    output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
+                    session_dir = Path(output_dir) / self.session_id.split('_')[0]
+                    files = list(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.flac"))
+                    count = len(files)
+                    duration_s = 0.0
+                    if self._recording_start_monotonic is not None:
+                        duration_s = max(0.0, time.monotonic() - self._recording_start_monotonic)
+                    self.session_logger.info(f"session stop reason=force_kill chunks={count} duration={duration_s:.1f}s")
+            finally:
+                self._flush_session_logger()
             return True
         except Exception as e:
             print(f"Error stopping recording: {e}")
+            try:
+                if self.session_logger:
+                    self.session_logger.error(f"stop exception err={e}")
+            finally:
+                self._flush_session_logger()
             return False
     
     def is_recording(self) -> bool:
@@ -248,10 +499,15 @@ class EchologRecorder:
     
     def get_status(self) -> Dict[str, any]:
         """Get current recording status."""
+        log_path = None
+        if self._session_dir is not None:
+            candidate = self._session_dir / 'session.log'
+            log_path = str(candidate)
         return {
             'recording': self.is_recording(),
             'session_id': self.session_id,
-            'process_id': self.ffmpeg_process.pid if self.ffmpeg_process else None
+            'process_id': self.ffmpeg_process.pid if self.ffmpeg_process else None,
+            'log_path': log_path
         }
     
     def check_recording_files(self) -> List[str]:
@@ -322,11 +578,33 @@ def main():
                        help='Test mode: use 1-minute segments instead of configured duration')
     parser.add_argument('--segment-duration', '-d', type=int,
                        help='Custom segment duration in seconds (overrides config)')
+    # Logging CLI overrides
+    parser.add_argument('--log-level', choices=['debug', 'info', 'warning', 'error'],
+                        help='Logging level for session logs')
+    parser.add_argument('--log-rotation', choices=['size', 'time', 'off'],
+                        help='Logging rotation strategy (size|time|off)')
+    parser.add_argument('--log-max-bytes', type=int,
+                        help='Max size in bytes before rotating session.log')
+    parser.add_argument('--log-backup-count', type=int,
+                        help='Number of rotated session.log files to keep')
     
     args = parser.parse_args()
     
     # Create recorder instance
     recorder = EchologRecorder(args.config)
+
+    # Apply CLI logging overrides with precedence over config
+    if any([args.log_level, args.log_rotation, args.log_max_bytes, args.log_backup_count]):
+        if not recorder.config.has_section('logging'):
+            recorder.config.add_section('logging')
+        if args.log_level:
+            recorder.config.set('logging', 'level', args.log_level)
+        if args.log_rotation:
+            recorder.config.set('logging', 'rotation', args.log_rotation)
+        if args.log_max_bytes is not None:
+            recorder.config.set('logging', 'max_bytes', str(args.log_max_bytes))
+        if args.log_backup_count is not None:
+            recorder.config.set('logging', 'backup_count', str(args.log_backup_count))
     
     if args.action == 'devices':
         print("Available audio devices:")
@@ -362,6 +640,8 @@ def main():
             print(f"Session ID: {status['session_id']}")
         if status['process_id']:
             print(f"Process ID: {status['process_id']}")
+        if status.get('log_path'):
+            print(f"Log: {status['log_path']}")
         
         # Show created files
         files = recorder.check_recording_files()

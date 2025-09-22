@@ -10,6 +10,7 @@ A Python wrapper around ffmpeg for recording and segmenting audio from system au
 - **FLAC Format**: High-quality lossless compression
 - **Easy Configuration**: Simple configuration file for customization
 - **Device Detection**: Automatically finds the best audio source
+ - **Session Logs**: Per-session rotating logs with metadata, ffmpeg output, and events
 
 ## Requirements
 
@@ -117,6 +118,18 @@ output_dir = ~/recordings
 
 [audio]
 auto_detect_device = true
+
+[logging]
+# Log level: debug, info, warning, error
+level = info
+# Rotation strategy: size | time | off (size default)
+rotation = size
+# Max size (bytes) before rotating
+max_bytes = 5242880
+# How many rotated files to keep
+backup_count = 3
+# Use UTC timestamps
+utc = true
 ```
 
 ## Usage Examples
@@ -145,6 +158,16 @@ python echolog.py start -s "test_session" -t
 python echolog.py status
 ```
 
+### Logging Controls
+```bash
+# Increase verbosity to debug
+python echolog.py start -s "session_01" --log-level debug
+
+# Adjust rotation size and backups
+python echolog.py start -s "session_01" --log-max-bytes 1048576 --log-backup-count 5
+```
+On start, the application logs: `Logging to <path>/session.log (level=INFO)`. The status command shows the log path.
+
 ## File Organization
 
 Recordings are organized as follows:
@@ -154,6 +177,7 @@ Recordings are organized as follows:
     ├── session_01_20250119_143022_chunk_001.flac
     ├── session_01_20250119_143022_chunk_002.flac
     └── session_01_20250119_143022_chunk_003.flac
+    └── session.log
 ```
 
 ## Troubleshooting
@@ -176,6 +200,10 @@ Recordings are organized as follows:
 - This is normal behavior - the file contains all recorded audio
 - The duration shown in media players may be longer than actual content
 - Use `python echolog.py files` to check actual file sizes
+
+### Logging Volume
+- If logs are too noisy, use `--log-level warning` or set `level = warning` in `echolog.conf`.
+- ffmpeg lines are logged at DEBUG unless they indicate warnings/errors.
 
 ## Makefile Commands
 
