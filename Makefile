@@ -55,9 +55,11 @@ start:
 		echo "Usage: make start my_session_name [TIME_LIMIT]"; \
 		echo "For test mode: make start my_session_name TEST=true"; \
 		exit 1; \
-	fi
-	@SESSION_NAME=$$(set -- $$ARGS; echo $$1); \
-	SHORT_TL=$$(set -- $$ARGS; echo $$2); \
+	fi; \
+	set -- $$ARGS; \
+	SESSION_NAME=$$1; \
+	SHORT_TL=$$2; \
+	if [ -z "$$SESSION_NAME" ]; then echo "❌ Error: invalid session name"; exit 1; fi; \
 	echo "Starting recording: $$SESSION_NAME"; \
 	CMD=".venv/bin/python echolog.py start --session-id \"$$SESSION_NAME\""; \
 	if [ -n "$$SHORT_TL" ]; then CMD="$$CMD --time-limit $$SHORT_TL"; fi; \
