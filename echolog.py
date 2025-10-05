@@ -15,7 +15,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 import threading
 import re
 
@@ -36,6 +36,10 @@ class EchologRecorder:
         self._finalized_chunks: set[str] = set()
         self._recording_start_monotonic: Optional[float] = None
         self._session_dir: Optional[Path] = None
+        self._time_limit_seconds: int = 0
+        self._limit_boundary: str = "immediate"
+        self._limit_thread: Optional[threading.Thread] = None
+        self._segment_duration_seconds: int = 0
         
     def _load_config(self) -> configparser.ConfigParser:
         """Load configuration from file or create default."""
@@ -48,7 +52,9 @@ class EchologRecorder:
                 'sample_rate': '16000',
                 'channels': '1',  # mono for speech
                 'format': 'ogg',  # ogg container with Opus codec
-                'output_dir': '~/recordings'
+                'output_dir': '~/recordings',
+                'time_limit': '0',  # 0 disables
+                'limit_boundary': 'immediate'  # immediate | end_segment
             },
             'audio': {
                 'auto_detect_device': 'true',
@@ -65,6 +71,114 @@ class EchologRecorder:
             self._save_config(config)
             
         return config
+    @staticmethod
+    def _parse_duration_to_seconds(value: Any) -> int:
+        """Parse a human-friendly duration into seconds.
+
+        Supports integers (seconds) or strings with suffixes: s, m, h (case-insensitive).
+        Returns 0 for empty/"0". Raises ValueError for negative or invalid values.
+        """
+        if value is None:
+            return 0
+        if isinstance(value, int):
+            if value < 0:
+                raise ValueError("time limit cannot be negative")
+            return value
+        s = str(value).strip()
+        if s == "":
+            return 0
+        if s.isdigit() or (s.startswith("-") and s[1:].isdigit()):
+            iv = int(s)
+            if iv < 0:
+                raise ValueError("time limit cannot be negative")
+            return iv
+        s_lower = s.lower()
+        try:
+            if s_lower.endswith('s'):
+                base = int(s_lower[:-1])
+                if base < 0:
+                    raise ValueError
+                return base
+            if s_lower.endswith('m'):
+                base = int(s_lower[:-1])
+                if base < 0:
+                    raise ValueError
+                return base * 60
+            if s_lower.endswith('h'):
+                base = int(s_lower[:-1])
+                if base < 0:
+                    raise ValueError
+                return base * 3600
+        except ValueError:
+            raise ValueError(f"invalid time limit value: {value}")
+        raise ValueError(f"invalid time limit value: {value}")
+
+    def _start_limit_timer_if_needed(self) -> None:
+        """Start background timer for warnings and auto-stop if a time limit is set."""
+        if self._time_limit_seconds <= 0 or not self._recording_start_monotonic:
+            return
+
+        def _runner() -> None:
+            assert self._recording_start_monotonic is not None
+            start = self._recording_start_monotonic
+            limit_at = start + self._time_limit_seconds
+            # Compute warnings
+            warnings: List[int] = []
+            if self._time_limit_seconds >= 120:
+                warnings = [60, 10]
+            elif self._time_limit_seconds >= 20:
+                warnings = [10]
+            else:
+                warnings = [5]
+
+            warned: set[int] = set()
+            pending_announced: bool = False
+            while self.recording:
+                now = time.monotonic()
+                remaining = int(max(0, limit_at - now))
+                # issue warnings if remaining matches schedule and not warned yet
+                for w in warnings:
+                    if remaining == w and w not in warned:
+                        msg = f"WARNING: Recording will stop in {w} seconds (time limit)."
+                        print(msg)
+                        if self.session_logger:
+                            self.session_logger.warning(f"limit_warning session_id={self.session_id} configured_limit_s={self._time_limit_seconds} remaining_s={w}")
+                        warned.add(w)
+                if now >= limit_at:
+                    # If end_segment boundary requested, wait until the next segment boundary
+                    if self._limit_boundary == 'end-segment' and self._segment_duration_seconds > 0:
+                        elapsed = now - start
+                        rem_to_boundary = self._segment_duration_seconds - (elapsed % self._segment_duration_seconds)
+                        if not pending_announced:
+                            print(f"Time limit reached; waiting ~{int(rem_to_boundary)}s to finish current segment...")
+                            if self.session_logger:
+                                self.session_logger.info(f"limit_hit session_id={self.session_id} configured_limit_s={self._time_limit_seconds} pending=end_segment remaining_to_boundary_s={int(rem_to_boundary)}")
+                            pending_announced = True
+                        # Stop when within a small window of the boundary
+                        if rem_to_boundary <= 0.3 or (self._segment_duration_seconds - rem_to_boundary) <= 0.3:
+                            print("Segment boundary reached. Stopping...")
+                            if self.session_logger:
+                                self.session_logger.info(f"limit_hit session_id={self.session_id} configured_limit_s={self._time_limit_seconds} reason=time_limit boundary=end_segment")
+                            try:
+                                self.stop_recording(reason="time_limit")
+                            finally:
+                                return
+                    else:
+                        print("Recording time limit reached. Stopping...")
+                        if self.session_logger:
+                            self.session_logger.info(f"limit_hit session_id={self.session_id} configured_limit_s={self._time_limit_seconds} reason=time_limit boundary=immediate")
+                        try:
+                            self.stop_recording(reason="time_limit")
+                        finally:
+                            return
+                time.sleep(0.2)
+
+        try:
+            self._limit_thread = threading.Thread(target=_runner, daemon=True)
+            self._limit_thread.start()
+        except Exception as e:
+            if self.session_logger:
+                self.session_logger.warning(f"limit timer start failed err={e}")
     
     def _save_config(self, config: configparser.ConfigParser):
         """Save configuration to file."""
@@ -262,6 +376,18 @@ class EchologRecorder:
         print(f"Using audio device: {device}")
         print(f"Output directory: {output_path}")
         
+        # Resolve time limit configuration
+        try:
+            time_limit_raw = self.config.get('recording', 'time_limit', fallback='0')
+            self._time_limit_seconds = self._parse_duration_to_seconds(time_limit_raw)
+            self._limit_boundary = (self.config.get('recording', 'limit_boundary', fallback='immediate') or 'immediate').lower()
+            if self._time_limit_seconds < 0:
+                print("Error: time limit cannot be negative")
+                return False
+        except ValueError as e:
+            print(f"Error: {e}")
+            return False
+
         # Build ffmpeg command
         if custom_duration:
             segment_duration = custom_duration
@@ -271,6 +397,11 @@ class EchologRecorder:
             print("🧪 TEST MODE: Using 1-minute segments")
         else:
             segment_duration = self.config.getint('recording', 'segment_duration')
+        # Persist for end-segment handling
+        try:
+            self._segment_duration_seconds = int(segment_duration)
+        except Exception:
+            self._segment_duration_seconds = 0
         
         sample_rate = self.config.get('recording', 'sample_rate')
         channels = self.config.get('recording', 'channels')
@@ -312,6 +443,7 @@ class EchologRecorder:
                 'channels': channels,
                 'format': format_type,
                 'segment_duration_s': segment_duration,
+                'time_limit_s': self._time_limit_seconds,
                 'output_dir': str(output_path),
             }
             meta_str = ' '.join([f"{k}={v}" for k, v in meta.items()])
@@ -363,6 +495,12 @@ class EchologRecorder:
             else:
                 minutes = segment_duration // 60
                 print(f"Note: Check the output directory for new chunk files every {minutes} minute{'s' if minutes != 1 else ''}")
+            # Start limit timer if configured
+            try:
+                self._start_limit_timer_if_needed()
+            except Exception as _lt_err:
+                if self.session_logger:
+                    self.session_logger.warning(f"limit timer error err={_lt_err}")
             return True
             
         except FileNotFoundError:
@@ -449,8 +587,12 @@ class EchologRecorder:
             if self.session_logger:
                 self.session_logger.warning(f"chunk watcher exception err={e}")
     
-    def stop_recording(self) -> bool:
-        """Stop the current recording."""
+    def stop_recording(self, reason: str = "user_request") -> bool:
+        """Stop the current recording.
+
+        Args:
+            reason: Reason for stopping, used for logging (e.g., 'user_request', 'time_limit', 'force_kill').
+        """
         if not self.recording or not self.ffmpeg_process:
             print("No active recording to stop.")
             return False
@@ -499,7 +641,7 @@ class EchologRecorder:
                     duration_s = 0.0
                     if self._recording_start_monotonic is not None:
                         duration_s = max(0.0, time.monotonic() - self._recording_start_monotonic)
-                    self.session_logger.info(f"session stop reason=user_request chunks={count} duration={duration_s:.1f}s")
+                    self.session_logger.info(f"session stop reason={reason} chunks={count} duration={duration_s:.1f}s")
             finally:
                 self._flush_session_logger()
             return True
@@ -626,6 +768,10 @@ def main():
                        help='Test mode: use 1-minute segments instead of configured duration')
     parser.add_argument('--segment-duration', '-d', type=int,
                        help='Custom segment duration in seconds (overrides config)')
+    parser.add_argument('--time-limit', '-T', type=str,
+                        help='Total recording time limit (e.g., 90s, 30m, 2h, or seconds)')
+    parser.add_argument('--limit-boundary', type=str, choices=['immediate', 'end-segment'],
+                        help='Whether to stop immediately at limit or after current segment')
     # Logging CLI overrides
     parser.add_argument('--log-level', choices=['debug', 'info', 'warning', 'error'],
                         help='Logging level for session logs')
@@ -654,6 +800,16 @@ def main():
         if args.log_backup_count is not None:
             recorder.config.set('logging', 'backup_count', str(args.log_backup_count))
     
+    # Apply CLI time limit overrides with precedence over config
+    if args.time_limit is not None:
+        if not recorder.config.has_section('recording'):
+            recorder.config.add_section('recording')
+        recorder.config.set('recording', 'time_limit', args.time_limit)
+    if args.limit_boundary is not None:
+        if not recorder.config.has_section('recording'):
+            recorder.config.add_section('recording')
+        recorder.config.set('recording', 'limit_boundary', args.limit_boundary)
+
     if args.action == 'devices':
         print("Available audio devices:")
         devices = recorder.detect_audio_devices()

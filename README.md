@@ -6,6 +6,7 @@ A Python wrapper around ffmpeg for recording and segmenting audio from system au
 
 - **Hybrid Approach**: Uses ffmpeg for robust audio capture and Python for user interface
 - **Automatic Segmentation**: Records audio in configurable time segments (default: 15 minutes)
+- **Recording Time Limit**: Optional total duration cap with human-friendly input (e.g., 30m, 2h)
 - **PulseAudio Integration**: Works seamlessly with Linux audio systems
 - **Ogg Opus Format**: Speech-optimized, compact files by default
 - **Easy Configuration**: Simple configuration file for customization
@@ -95,17 +96,17 @@ A Python wrapper around ffmpeg for recording and segmenting audio from system au
    python echolog.py start --session-id "test_session" --test
    ```
 
-4. **Stop recording:**
+5. **Stop recording:**
    ```bash
    python echolog.py stop
    ```
 
-5. **Check recording status:**
+6. **Check recording status:**
    ```bash
    python echolog.py status
    ```
 
-6. **List all recording files:**
+7. **List all recording files:**
    ```bash
    python echolog.py files
    ```
@@ -121,6 +122,8 @@ sample_rate = 16000      # 16 kHz (speech)
 channels = 1             # Mono (speech)
 format = ogg             # Ogg container with Opus codec
 output_dir = ~/recordings
+time_limit = 0           # 0 disables; supports 90s, 30m, 2h
+limit_boundary = immediate  # or end_segment
 
 [audio]
 auto_detect_device = true
@@ -162,6 +165,15 @@ python echolog.py start -s "test_session" -t
 ### Check Status
 ```bash
 python echolog.py status
+```
+
+### Time Limit Examples
+
+Limit total recording time via CLI (overrides config):
+```bash
+python echolog.py start --session-id "lecture_2025-10-05" --time-limit 30m
+# or stop after current segment at the limit
+python echolog.py start -s "podcast_ep1" --time-limit 2h --limit-boundary end-segment
 ```
 
 ### Logging Controls
