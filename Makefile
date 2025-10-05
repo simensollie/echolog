@@ -13,6 +13,7 @@ help:
 	@echo "  test        - Run test recording (1-minute segments)"
 	@echo "  clean       - Clean up temporary files and recordings"
 	@echo "  start       - Start recording (requires SESSION_ID)"
+	@echo "               Variables: TIME_LIMIT=30m LIMIT_BOUNDARY=end-segment TEST=true"
 	@echo "  stop        - Stop current recording"
 	@echo "  status      - Show recording status and files"
 	@echo "  files       - List all recording files"
@@ -48,19 +49,23 @@ test:
 
 # Start recording (supports both SESSION_ID=name and make start name)
 start:
-	@if [ -z "$(filter-out start,$(MAKECMDGOALS))" ]; then \
+	@ARGS="$(filter-out start,$(MAKECMDGOALS))"; \
+	if [ -z "$$ARGS" ]; then \
 		echo "❌ Error: Session name required"; \
-		echo "Usage: make start my_session_name"; \
+		echo "Usage: make start my_session_name [TIME_LIMIT]"; \
 		echo "For test mode: make start my_session_name TEST=true"; \
 		exit 1; \
 	fi
-	@SESSION_NAME="$(filter-out start,$(MAKECMDGOALS))"; \
+	@SESSION_NAME=$$(set -- $$ARGS; echo $$1); \
+	SHORT_TL=$$(set -- $$ARGS; echo $$2); \
 	echo "Starting recording: $$SESSION_NAME"; \
-	if [ "$(TEST)" = "true" ]; then \
-		.venv/bin/python echolog.py start --session-id "$$SESSION_NAME" --test; \
-	else \
-		.venv/bin/python echolog.py start --session-id "$$SESSION_NAME"; \
-	fi
+	CMD=".venv/bin/python echolog.py start --session-id \"$$SESSION_NAME\""; \
+	if [ -n "$$SHORT_TL" ]; then CMD="$$CMD --time-limit $$SHORT_TL"; fi; \
+	if [ -n "$(TIME_LIMIT)" ]; then CMD="$$CMD --time-limit $(TIME_LIMIT)"; fi; \
+	if [ -n "$(LIMIT_BOUNDARY)" ]; then CMD="$$CMD --limit-boundary $(LIMIT_BOUNDARY)"; fi; \
+	if [ "$(TEST)" = "true" ]; then CMD="$$CMD --test"; fi; \
+	echo "Command: $$CMD"; \
+	sh -c "$$CMD"
 
 # Allow targets to be passed as arguments
 %:
