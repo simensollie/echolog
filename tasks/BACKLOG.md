@@ -219,6 +219,8 @@ This backlog contains future enhancements and features for the Echolog audio rec
   - [ ] Optional video recording capability
   - [ ] Error handling for failed page loads or audio issues
   - [ ] Support for common video platforms (YouTube, Vimeo, etc.)
+  - [ ] Stop recording when content is finished playing (ends)
+  - [ ] Must handle authentication for protected content
 - **Estimated Effort**: 3-5 days
 
 #### 13. Cross-Platform Support
