@@ -34,14 +34,14 @@ Add an interactive terminal user interface for echolog that provides real-time f
 - [x] Status updates immediately when state changes
 - [x] Typecheck passes
 
-### US-003: Display elapsed time
+### US-003: Display elapsed time ✅
 **Description:** As a user, I want to see elapsed recording time so I know how long I've been recording.
 
 **Acceptance Criteria:**
-- [ ] Timer displays HH:MM:SS format
-- [ ] Timer updates every second during recording
-- [ ] Timer shows 00:00:00 when idle
-- [ ] Typecheck passes
+- [x] Timer displays HH:MM:SS format
+- [x] Timer updates every second during recording
+- [x] Timer shows 00:00:00 when idle
+- [x] Typecheck passes
 
 ### US-004: Display segment progress
 **Description:** As a user, I want to see progress toward the next chunk so I know when segments are created.

@@ -43,3 +43,20 @@ Thread: https://ampcode.com/threads/T-019bacfe-196f-755c-b49f-1407d0f6d8c9
   - Use TYPE_CHECKING import guard for type hints to avoid circular imports
   - CSS classes can be dynamically added/removed via add_class()/remove_class()
 ---
+
+## 2026-01-11 - US-003
+Thread: https://ampcode.com/threads/T-019bad00-968e-73cb-9fd5-9cd645773e28
+- Implemented: Elapsed time display with real-time updates
+- Files changed:
+  - echolog.py (modified) - Added `elapsed_seconds` field to `get_status()` method
+  - echolog_tui.py (modified) - Added `_update_timer()` method with 1-second polling, reset timer to 00:00:00 when idle
+- Acceptance criteria met:
+  - Timer displays HH:MM:SS format
+  - Timer updates every second during recording
+  - Timer shows 00:00:00 when idle
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - `get_status()` is the interface for TUI to get recorder state - extend it for new features
+  - `_recording_start_monotonic` is used to calculate elapsed time (monotonic clock)
+  - Use separate polling intervals for different update frequencies (0.5s for status, 1s for timer)
+---
