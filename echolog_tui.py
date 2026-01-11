@@ -772,11 +772,11 @@ class EchologTUI(App):
     SUB_TITLE = "Audio Recorder"
     
     BINDINGS = [
-        Binding("q", "quit", "Quit", priority=True),
-        Binding("r", "start_recording", "Record"),
-        Binding("s", "stop_recording", "Stop"),
-        Binding("d", "select_device", "Devices"),
-        Binding("question_mark", "show_help", "Help"),
+        Binding("r", "start_recording", "[R]ecord"),
+        Binding("s", "stop_recording", "[S]top"),
+        Binding("d", "select_device", "[D]evices"),
+        Binding("question_mark", "show_help", "[?]Help"),
+        Binding("q", "quit", "[Q]uit", priority=True),
     ]
     
     def __init__(self, recorder: "EchologRecorder | None" = None) -> None:
