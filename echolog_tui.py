@@ -281,7 +281,14 @@ class InfoPanel(Static):
         padding: 0 1;
         height: 8;
     }
+    
+    InfoPanel .disk-warning {
+        color: #ff6600;
+        text-style: bold;
+    }
     """
+    
+    LOW_DISK_THRESHOLD_BYTES = 1024 * 1024 * 1024  # 1 GB
     
     def __init__(self) -> None:
         super().__init__()
@@ -290,6 +297,7 @@ class InfoPanel(Static):
         self.sample_rate = "16000 Hz"
         self.segment_duration = "5 min"
         self.disk_free = "-- GB free"
+        self.disk_free_bytes = 0
     
     def compose(self) -> ComposeResult:
         yield Label(self._render_info(), id="info-label")
@@ -309,6 +317,12 @@ class InfoPanel(Static):
                 setattr(self, key, value)
         label = self.query_one("#info-label", Label)
         label.update(self._render_info())
+        
+        # Apply warning class if disk space is low
+        if self.disk_free_bytes > 0 and self.disk_free_bytes < self.LOW_DISK_THRESHOLD_BYTES:
+            label.add_class("disk-warning")
+        else:
+            label.remove_class("disk-warning")
 
 
 class LogPanel(Static):
@@ -488,12 +502,17 @@ class EchologTUI(App):
                 chunk_panel = self.query_one(ChunkPanel)
                 chunk_panel.update_chunks([])
     
-    def _sync_info_panel(self) -> None:
-        """Sync the info panel with recorder config."""
+    def _sync_info_panel(self, status: dict | None = None) -> None:
+        """Sync the info panel with recorder config.
+        
+        Args:
+            status: Optional pre-fetched status dict. If None, fetches from recorder.
+        """
         if self.recorder is None:
             return
         
-        status = self.recorder.get_status()
+        if status is None:
+            status = self.recorder.get_status()
         info_panel = self.query_one(InfoPanel)
         
         # Format segment duration as human-readable
@@ -503,11 +522,22 @@ class EchologTUI(App):
         else:
             segment_str = f"{segment_secs} sec"
         
+        # Format disk space as human-readable
+        disk_free_bytes = status.get("disk_free_bytes", 0)
+        if disk_free_bytes >= 1024 * 1024 * 1024:
+            disk_str = f"{disk_free_bytes / (1024 * 1024 * 1024):.1f} GB free"
+        elif disk_free_bytes >= 1024 * 1024:
+            disk_str = f"{disk_free_bytes / (1024 * 1024):.0f} MB free"
+        else:
+            disk_str = "-- GB free"
+        
         info_panel.update_info(
             device=status.get("device_name", "Not selected"),
             format=status.get("format", "OGG/Opus"),
             sample_rate=f"{status.get('sample_rate', '16000')} Hz",
-            segment_duration=segment_str
+            segment_duration=segment_str,
+            disk_free=disk_str,
+            disk_free_bytes=disk_free_bytes
         )
     
     def _update_timer(self) -> None:
@@ -530,6 +560,9 @@ class EchologTUI(App):
         
         # Update chunk list
         self._sync_chunks(status)
+        
+        # Update disk space (reuse status to avoid extra call)
+        self._sync_info_panel(status)
     
     def _sync_chunks(self, status: dict | None = None) -> None:
         """Sync the chunk panel with recorder chunk data."""

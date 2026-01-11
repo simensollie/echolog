@@ -746,6 +746,15 @@ class EchologRecorder:
             except Exception:
                 pass
         
+        # Calculate disk space in output directory
+        disk_free_bytes = 0
+        try:
+            output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
+            stat = os.statvfs(output_dir)
+            disk_free_bytes = stat.f_bavail * stat.f_frsize
+        except Exception:
+            pass
+        
         return {
             'recording': self.is_recording(),
             'session_id': self.session_id,
@@ -760,6 +769,7 @@ class EchologRecorder:
             'format': format_display,
             'sample_rate': self.config.get('recording', 'sample_rate', fallback='16000'),
             'chunks': chunks,
+            'disk_free_bytes': disk_free_bytes,
         }
     
     def check_recording_files(self) -> List[str]:

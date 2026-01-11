@@ -84,24 +84,24 @@ Add an interactive terminal user interface for echolog that provides real-time f
 - [x] Final chunk is properly finalized
 - [x] Typecheck passes
 
-### US-008: Display device info
+### US-008: Display device info ✅
 **Description:** As a user, I want to see the current audio device so I know what's being recorded.
 
 **Acceptance Criteria:**
-- [ ] Info panel shows current device name
-- [ ] Shows format (OGG/Opus, FLAC, etc.)
-- [ ] Shows sample rate
-- [ ] Shows segment duration setting
-- [ ] Typecheck passes
+- [x] Info panel shows current device name
+- [x] Shows format (OGG/Opus, FLAC, etc.)
+- [x] Shows sample rate
+- [x] Shows segment duration setting
+- [x] Typecheck passes
 
-### US-009: Display disk space
+### US-009: Display disk space ✅
 **Description:** As a user, I want to see available disk space so I don't run out mid-session.
 
 **Acceptance Criteria:**
-- [ ] Info panel shows free space in output directory
-- [ ] Updates periodically during recording
-- [ ] Warning color when space is low (<1GB)
-- [ ] Typecheck passes
+- [x] Info panel shows free space in output directory
+- [x] Updates periodically during recording
+- [x] Warning color when space is low (<1GB)
+- [x] Typecheck passes
 
 ### US-010: Display session log
 **Description:** As a user, I want to see recent log entries so I can spot issues immediately.

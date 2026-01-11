@@ -150,3 +150,21 @@ Thread: https://ampcode.com/threads/T-019bad0c-a9fb-700e-a4ae-c213695f6522
   - Pattern for TUI actions: check recorder exists, check state (is_recording), log before action, call recorder method, log result, force sync UI
   - Same force status sync pattern (_last_status = None) used as in start recording
 ---
+
+## 2026-01-11 - US-008 & US-009
+Thread: https://ampcode.com/threads/T-019bad0e-f333-7511-971e-55f491dadfc7
+- Implemented: US-008 was already implemented in US-005. US-009 adds disk space display.
+- Files changed:
+  - echolog.py (modified) - Added `disk_free_bytes` to `get_status()` using `os.statvfs()`
+  - echolog_tui.py (modified) - Added `disk_free_bytes` field to InfoPanel, warning CSS class for low disk, updated `_sync_info_panel()` to format disk space
+  - tasks/prd-tui-interface.md (modified) - Marked US-008 and US-009 as complete
+- Acceptance criteria met:
+  - Info panel shows free space in output directory (e.g., "45.2 GB free")
+  - Updates periodically during recording via `_update_timer()` -> `_sync_info_panel()`
+  - Warning color (orange) when space is low (<1GB)
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - Use `os.statvfs(path)` to get disk space: `f_bavail * f_frsize` = free bytes
+  - Pass pre-fetched status dict between sync methods to avoid redundant `get_status()` calls
+  - InfoPanel.update_info() accepts kwargs including `disk_free_bytes` for warning logic
+---
