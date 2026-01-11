@@ -370,6 +370,8 @@ class EchologTUI(App):
         log_panel.add_entry("TUI started - Press ? for help")
         # Initial status sync
         self._sync_recorder_status()
+        # Sync info panel with recorder config
+        self._sync_info_panel()
         # Start periodic status polling (every 0.5 seconds)
         self.set_interval(0.5, self._sync_recorder_status)
         # Start timer update (every 1 second for smooth HH:MM:SS display)
@@ -398,6 +400,28 @@ class EchologTUI(App):
                 # Reset segment progress when recording stops
                 segment_panel = self.query_one(SegmentPanel)
                 segment_panel.update_progress(0, 0, 300)
+    
+    def _sync_info_panel(self) -> None:
+        """Sync the info panel with recorder config."""
+        if self.recorder is None:
+            return
+        
+        status = self.recorder.get_status()
+        info_panel = self.query_one(InfoPanel)
+        
+        # Format segment duration as human-readable
+        segment_secs = status.get("segment_duration_seconds", 300)
+        if segment_secs >= 60:
+            segment_str = f"{segment_secs // 60} min"
+        else:
+            segment_str = f"{segment_secs} sec"
+        
+        info_panel.update_info(
+            device=status.get("device_name", "Not selected"),
+            format=status.get("format", "OGG/Opus"),
+            sample_rate=f"{status.get('sample_rate', '16000')} Hz",
+            segment_duration=segment_str
+        )
     
     def _update_timer(self) -> None:
         """Update the timer display with elapsed recording time."""

@@ -709,6 +709,20 @@ class EchologRecorder:
             segment_elapsed = elapsed_seconds % segment_duration
             segment_remaining = segment_duration - segment_elapsed
         
+        # Get device name from config
+        device_name = self.config.get('audio', 'device_name', fallback='')
+        if not device_name or self.config.getboolean('audio', 'auto_detect_device', fallback=True):
+            device_name = 'Auto-detect'
+        
+        # Get format display name
+        fmt = self.config.get('recording', 'format', fallback='ogg')
+        format_display = {
+            'ogg': 'OGG/Opus',
+            'mp3': 'MP3',
+            'flac': 'FLAC',
+            'wav': 'WAV'
+        }.get(fmt, fmt.upper())
+        
         return {
             'recording': self.is_recording(),
             'session_id': self.session_id,
@@ -718,7 +732,10 @@ class EchologRecorder:
             'segment_duration_seconds': segment_duration,
             'segment_elapsed_seconds': segment_elapsed,
             'segment_remaining_seconds': segment_remaining,
-            'current_chunk_number': current_chunk
+            'current_chunk_number': current_chunk,
+            'device_name': device_name,
+            'format': format_display,
+            'sample_rate': self.config.get('recording', 'sample_rate', fallback='16000'),
         }
     
     def check_recording_files(self) -> List[str]:
