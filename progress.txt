@@ -78,3 +78,21 @@ Thread: https://ampcode.com/threads/T-019bad02-a916-77ce-9399-8c8462d65d59
   - Use `_segment_duration_seconds` from EchologRecorder for accurate segment length
   - Progress bar rendering: calculate percentage, fill chars with █ and ░
 ---
+
+## 2026-01-11 - US-005
+Thread: https://ampcode.com/threads/T-019bad05-2b33-77bf-92f6-d25c998a32d4
+- Implemented: Info panel with device and settings display
+- Files changed:
+  - echolog.py (modified) - Extended `get_status()` to return device_name, format, sample_rate
+  - echolog_tui.py (modified) - Added `_sync_info_panel()` method to populate InfoPanel from recorder config
+- Acceptance criteria met:
+  - Info panel shows current audio device name (or "Auto-detect")
+  - Shows audio format (OGG/Opus, FLAC, etc.)
+  - Shows sample rate
+  - Shows segment duration setting
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - Extend `get_status()` to expose config data to TUI rather than accessing config directly
+  - Format display names: {'ogg': 'OGG/Opus', 'mp3': 'MP3', 'flac': 'FLAC'}
+  - InfoPanel.update_info() accepts kwargs to update individual fields
+---
