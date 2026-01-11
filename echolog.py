@@ -698,12 +698,27 @@ class EchologRecorder:
         if self.is_recording() and self._recording_start_monotonic is not None:
             elapsed_seconds = int(time.monotonic() - self._recording_start_monotonic)
         
+        # Calculate segment progress
+        segment_duration = self._segment_duration_seconds if self._segment_duration_seconds > 0 else 300
+        segment_elapsed = 0
+        segment_remaining = segment_duration
+        current_chunk = 0
+        
+        if self.is_recording() and elapsed_seconds > 0:
+            current_chunk = (elapsed_seconds // segment_duration) + 1
+            segment_elapsed = elapsed_seconds % segment_duration
+            segment_remaining = segment_duration - segment_elapsed
+        
         return {
             'recording': self.is_recording(),
             'session_id': self.session_id,
             'process_id': self.ffmpeg_process.pid if self.ffmpeg_process else None,
             'log_path': log_path,
-            'elapsed_seconds': elapsed_seconds
+            'elapsed_seconds': elapsed_seconds,
+            'segment_duration_seconds': segment_duration,
+            'segment_elapsed_seconds': segment_elapsed,
+            'segment_remaining_seconds': segment_remaining,
+            'current_chunk_number': current_chunk
         }
     
     def check_recording_files(self) -> List[str]:

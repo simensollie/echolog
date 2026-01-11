@@ -93,6 +93,64 @@ class TimerPanel(Static):
         label.update(time_str)
 
 
+class SegmentPanel(Static):
+    """Display segment progress with progress bar."""
+    
+    DEFAULT_CSS = """
+    SegmentPanel {
+        border: solid green;
+        padding: 0 1;
+        width: 1fr;
+        height: 3;
+    }
+    """
+    
+    def __init__(self) -> None:
+        super().__init__()
+        self.current_chunk = 0
+        self.segment_elapsed = 0
+        self.segment_duration = 300
+    
+    def compose(self) -> ComposeResult:
+        yield Label(self._render_progress(), id="segment-label")
+    
+    def _render_progress(self) -> str:
+        """Render the segment progress display."""
+        if self.current_chunk == 0:
+            return "Chunk -/∞   [░░░░░░░░░░░░] --:--"
+        
+        # Calculate progress percentage
+        progress = self.segment_elapsed / self.segment_duration if self.segment_duration > 0 else 0
+        progress = min(1.0, max(0.0, progress))
+        
+        # Create progress bar (12 chars wide)
+        bar_width = 12
+        filled = int(progress * bar_width)
+        bar = "█" * filled + "░" * (bar_width - filled)
+        
+        # Format remaining time as MM:SS
+        remaining = self.segment_duration - self.segment_elapsed
+        mins = remaining // 60
+        secs = remaining % 60
+        time_str = f"{mins}:{secs:02d}"
+        
+        return f"Chunk {self.current_chunk}/∞   [{bar}] {time_str}"
+    
+    def update_progress(self, current_chunk: int, segment_elapsed: int, segment_duration: int) -> None:
+        """Update the segment progress display.
+        
+        Args:
+            current_chunk: Current chunk number (1-indexed)
+            segment_elapsed: Seconds elapsed in current segment
+            segment_duration: Total segment duration in seconds
+        """
+        self.current_chunk = current_chunk
+        self.segment_elapsed = segment_elapsed
+        self.segment_duration = segment_duration
+        label = self.query_one("#segment-label", Label)
+        label.update(self._render_progress())
+
+
 class ChunkPanel(Static):
     """Display list of recorded chunks."""
     
@@ -247,6 +305,7 @@ class Dashboard(Container):
         
         with Horizontal(id="timer-row"):
             yield TimerPanel()
+            yield SegmentPanel()
         
         with Horizontal(id="main-row"):
             with Vertical(id="chunks-col"):
@@ -336,6 +395,9 @@ class EchologTUI(App):
                 # Reset timer to 00:00:00 when recording stops
                 timer_panel = self.query_one(TimerPanel)
                 timer_panel.update_time(0)
+                # Reset segment progress when recording stops
+                segment_panel = self.query_one(SegmentPanel)
+                segment_panel.update_progress(0, 0, 300)
     
     def _update_timer(self) -> None:
         """Update the timer display with elapsed recording time."""
@@ -346,6 +408,14 @@ class EchologTUI(App):
         elapsed_seconds = status.get("elapsed_seconds", 0)
         timer_panel = self.query_one(TimerPanel)
         timer_panel.update_time(elapsed_seconds)
+        
+        # Update segment progress
+        segment_panel = self.query_one(SegmentPanel)
+        segment_panel.update_progress(
+            current_chunk=status.get("current_chunk_number", 0),
+            segment_elapsed=status.get("segment_elapsed_seconds", 0),
+            segment_duration=status.get("segment_duration_seconds", 300)
+        )
     
     def action_quit(self) -> None:
         """Quit the application."""
