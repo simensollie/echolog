@@ -772,10 +772,10 @@ class EchologTUI(App):
     SUB_TITLE = "Audio Recorder"
     
     BINDINGS = [
-        Binding("r", "start_recording", "[R]ecord"),
-        Binding("s", "stop_recording", "[S]top"),
-        Binding("d", "select_device", "[D]evices"),
-        Binding("question_mark", "show_help", "[?]Help"),
+        Binding("r", "start_recording", "[R]ecord", priority=True),
+        Binding("s", "stop_recording", "[S]top", priority=True),
+        Binding("d", "select_device", "[D]evices", priority=True),
+        Binding("question_mark", "show_help", "[?]Help", priority=True),
         Binding("q", "quit", "[Q]uit", priority=True),
     ]
     
