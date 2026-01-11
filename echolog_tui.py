@@ -6,6 +6,7 @@ A Textual-based interactive terminal interface for managing recording sessions.
 """
 
 from typing import TYPE_CHECKING
+from datetime import datetime
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
@@ -61,6 +62,7 @@ class HelpModal(ModalScreen[None]):
                 "  [R]  Start recording\n"
                 "  [S]  Stop recording\n"
                 "  [D]  Select audio device\n"
+                "  [E]  Edit session name (display)\n"
                 "  [?]  Show this help\n"
                 "  [Q]  Quit application",
                 id="help-content"
@@ -291,10 +293,15 @@ class SessionNameModal(ModalScreen[str]):
     }
     """
     
+    def __init__(self, default_value: str = "", title: str = "Enter session name:") -> None:
+        super().__init__()
+        self._default_value = default_value
+        self._title = title
+
     def compose(self) -> ComposeResult:
         with Container():
-            yield Label("Enter session name:")
-            yield Input(placeholder="my_session", id="session-name-input")
+            yield Label(self._title)
+            yield Input(value=self._default_value, placeholder="my_session", id="session-name-input")
             yield Static("Press Enter to start, Escape to cancel")
     
     def on_mount(self) -> None:
@@ -337,7 +344,7 @@ class StatusPanel(Static):
     def __init__(self) -> None:
         super().__init__()
         self.status = "Idle"
-        self.session_id: str | None = None
+        self.session_label: str | None = None
     
     def compose(self) -> ComposeResult:
         yield Label(self._render_status(), id="status-label", classes="status-idle")
@@ -345,19 +352,19 @@ class StatusPanel(Static):
     def _render_status(self) -> str:
         indicator = "○" if self.status == "Idle" else "●"
         status_text = f"Status: {indicator} {self.status.upper()}"
-        if self.session_id:
-            status_text += f"          Session: {self.session_id}"
+        if self.session_label:
+            status_text += f"          Session: {self.session_label}"
         return status_text
     
-    def update_status(self, status: str, session_id: str | None = None) -> None:
+    def update_status(self, status: str, session_label: str | None = None) -> None:
         """Update the status display.
         
         Args:
             status: Either 'Idle' or 'Recording'
-            session_id: Current session ID (shown when recording)
+            session_label: Current session label (shown when recording)
         """
         self.status = status
-        self.session_id = session_id
+        self.session_label = session_label
         label = self.query_one("#status-label", Label)
         label.update(self._render_status())
         # Update CSS class for coloring
@@ -373,7 +380,7 @@ class TimerPanel(Static):
     
     DEFAULT_CSS = """
     TimerPanel {
-        border: solid green;
+        border: solid $primary;
         padding: 0 1;
         width: 20;
         height: 3;
@@ -397,7 +404,7 @@ class SegmentPanel(Static):
     
     DEFAULT_CSS = """
     SegmentPanel {
-        border: solid green;
+        border: solid $primary;
         padding: 0 1;
         width: 1fr;
         height: 3;
@@ -455,7 +462,7 @@ class ChunkPanel(Static):
     
     DEFAULT_CSS = """
     ChunkPanel {
-        border: solid green;
+        border: solid $primary;
         padding: 0 1;
         height: 8;
         overflow-y: auto;
@@ -516,7 +523,7 @@ class InfoPanel(Static):
     
     DEFAULT_CSS = """
     InfoPanel {
-        border: solid green;
+        border: solid $primary;
         padding: 0 1;
         height: auto;
         min-height: 7;
@@ -579,7 +586,7 @@ class LogPanel(Static):
     
     DEFAULT_CSS = """
     LogPanel {
-        border: solid green;
+        border: solid $primary;
         padding: 0 1;
         height: 6;
     }
@@ -604,8 +611,8 @@ class LogPanel(Static):
     
     def __init__(self) -> None:
         super().__init__()
-        self.log_entries: list[str] = []
-        self._session_log_entries: list[dict] = []
+        self.log_entries: list[dict[str, str]] = []
+        self._session_log_entries: list[dict[str, str]] = []
         self.max_entries = 5
     
     def compose(self) -> ComposeResult:
@@ -623,16 +630,16 @@ class LogPanel(Static):
             self.log_entries = self.log_entries[-self.max_entries:]
         self._update_display()
     
-    def update_session_log(self, entries: list[dict]) -> None:
+    def update_session_log(self, entries: list[dict[str, str]]) -> None:
         """Update with session log entries from recorder.
-        
+
         Args:
             entries: List of dicts with 'timestamp', 'level', 'message' keys.
         """
         self._session_log_entries = entries
         self._update_display()
     
-    def _format_entry(self, entry: dict) -> str:
+    def _format_entry(self, entry: dict[str, str]) -> str:
         """Format a log entry for display with level prefix."""
         level = entry.get("level", "INFO").upper()
         message = entry.get("message", "")
@@ -650,25 +657,22 @@ class LogPanel(Static):
     def _update_display(self) -> None:
         # Combine session log entries with local TUI entries
         # Session log entries take priority; local entries shown if no session
-        all_entries = []
-        
+        all_entries: list[dict[str, str]] = []
+
         if self._session_log_entries:
             all_entries = self._session_log_entries[-self.max_entries:]
-        
+
         # Add local entries that aren't duplicates
         for entry in self.log_entries:
-            if isinstance(entry, dict):
-                all_entries.append(entry)
-            else:
-                all_entries.append({"message": str(entry), "level": "INFO"})
-        
+            all_entries.append(entry)
+
         # Keep only the most recent entries
         all_entries = all_entries[-self.max_entries:]
-        
+
         if not all_entries:
             text = "No log entries"
         else:
-            lines = []
+            lines: list[str] = []
             for entry in all_entries:
                 line = self._format_entry(entry)
                 level = entry.get("level", "INFO").upper()
@@ -681,7 +685,7 @@ class LogPanel(Static):
                     line = f"[#888888]{line}[/]"
                 lines.append(line)
             text = "\n".join(lines)
-        
+
         label = self.query_one("#log-label", Label)
         label.update(text)
 
@@ -773,10 +777,16 @@ class EchologTUI(App):
     
     BINDINGS = [
         Binding("r", "start_recording", "[R]ecord", priority=True),
+        Binding("R", "start_recording", None, priority=True),
         Binding("s", "stop_recording", "[S]top", priority=True),
+        Binding("S", "stop_recording", None, priority=True),
         Binding("d", "select_device", "[D]evices", priority=True),
+        Binding("D", "select_device", None, priority=True),
+        Binding("e", "edit_session_label", "[E]dit name", priority=True),
+        Binding("E", "edit_session_label", None, priority=True),
         Binding("question_mark", "show_help", "[?]Help", priority=True),
         Binding("q", "quit", "[Q]uit", priority=True),
+        Binding("Q", "quit", None, priority=True),
     ]
     
     def __init__(self, recorder: "EchologRecorder | None" = None) -> None:
@@ -809,14 +819,18 @@ class EchologTUI(App):
         
         status = self.recorder.get_status()
         is_recording = status.get("recording", False)
-        session_id = status.get("session_id")
+        session_label = (
+            status.get("session_label")
+            or status.get("session_name")
+            or status.get("session_id")
+        )
         
         # Only update if status changed to avoid redundant updates
         if is_recording != self._last_status:
             self._last_status = is_recording
             status_panel = self.query_one(StatusPanel)
             if is_recording:
-                status_panel.update_status("Recording", session_id)
+                status_panel.update_status("Recording", session_label)
             else:
                 status_panel.update_status("Idle", None)
                 # Reset timer to 00:00:00 when recording stops
@@ -999,7 +1013,11 @@ class EchologTUI(App):
             return
         
         # Show modal to get session name
-        self.push_screen(SessionNameModal(), self._on_session_name_submitted)
+        self.push_screen(SessionNameModal(default_value=self._default_session_name()), self._on_session_name_submitted)
+
+    def _default_session_name(self) -> str:
+        """Generate a default session name for the start-recording prompt."""
+        return datetime.now().strftime("rec_%Y%m%d_%H%M%S")
     
     def _on_session_name_submitted(self, session_name: str) -> None:
         """Callback when session name is submitted from modal."""
@@ -1100,6 +1118,46 @@ class EchologTUI(App):
 
         # Update info panel to show the new device
         self._sync_info_panel()
+
+    def action_edit_session_label(self) -> None:
+        """Edit the user-facing session name/label while recording (display-only)."""
+        log_panel = self.query_one(LogPanel)
+
+        if self.recorder is None:
+            log_panel.add_entry("ERROR: No recorder available")
+            return
+
+        if not self.recorder.is_recording():
+            log_panel.add_entry("No active recording to rename")
+            return
+
+        status = self.recorder.get_status()
+        current = status.get("session_label") or status.get("session_name") or ""
+        self.push_screen(
+            SessionNameModal(default_value=str(current), title="Edit session name (display only):"),
+            self._on_session_label_submitted,
+        )
+
+    def _on_session_label_submitted(self, new_label: str) -> None:
+        """Callback when session label is edited."""
+        log_panel = self.query_one(LogPanel)
+
+        if not new_label:
+            log_panel.add_entry("Rename cancelled")
+            return
+
+        if self.recorder is None:
+            log_panel.add_entry("ERROR: No recorder available")
+            return
+
+        try:
+            # Display-only label; does not rename on disk.
+            self.recorder.set_session_label(new_label)
+            log_panel.add_entry(f"Session label set: {new_label}")
+            self._last_status = None
+            self._sync_recorder_status()
+        except Exception as e:
+            log_panel.add_entry(f"ERROR: {e}")
     
     def action_show_help(self) -> None:
         """Show help overlay with keyboard shortcuts."""
