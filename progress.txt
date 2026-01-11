@@ -24,3 +24,22 @@ Thread: https://ampcode.com/threads/T-019bacfb-822c-775e-81d5-13ed4be60bee
   - Use compose() method to build widget tree, on_mount() for initialization
   - query_one() to find widgets by ID/class, update() to refresh labels
 ---
+
+## 2026-01-11 - US-002
+Thread: https://ampcode.com/threads/T-019bacfe-196f-755c-b49f-1407d0f6d8c9
+- Implemented: Recording status display with real-time updates
+- Files changed:
+  - echolog_tui.py (modified) - Added recorder integration, StatusPanel CSS styling with status-idle/status-recording classes, periodic status polling via set_interval()
+  - echolog.py (modified) - Pass recorder instance to run_tui()
+- Acceptance criteria met:
+  - Status panel shows "Idle" (○) when not recording
+  - Status panel shows "Recording" (●) with green color when active
+  - Session ID displayed when recording
+  - Status updates immediately via 0.5s polling interval
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - Textual's set_interval() is ideal for periodic status polling
+  - Track _last_status to avoid redundant UI updates
+  - Use TYPE_CHECKING import guard for type hints to avoid circular imports
+  - CSS classes can be dynamically added/removed via add_class()/remove_class()
+---

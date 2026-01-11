@@ -24,15 +24,15 @@ Add an interactive terminal user interface for echolog that provides real-time f
 - [x] Application exits cleanly with `q` key
 - [x] Typecheck passes
 
-### US-002: Display recording status
+### US-002: Display recording status ✅
 **Description:** As a user, I want to see the current recording status so I know whether a session is active.
 
 **Acceptance Criteria:**
-- [ ] Status panel shows "Idle" when not recording
-- [ ] Status panel shows "Recording" with indicator when active
-- [ ] Session ID displayed when recording
-- [ ] Status updates immediately when state changes
-- [ ] Typecheck passes
+- [x] Status panel shows "Idle" when not recording
+- [x] Status panel shows "Recording" with indicator when active
+- [x] Session ID displayed when recording
+- [x] Status updates immediately when state changes
+- [x] Typecheck passes
 
 ### US-003: Display elapsed time
 **Description:** As a user, I want to see elapsed recording time so I know how long I've been recording.
