@@ -17,6 +17,65 @@ if TYPE_CHECKING:
     from echolog import EchologRecorder
 
 
+class HelpModal(ModalScreen[None]):
+    """Modal overlay displaying keyboard shortcuts."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_help", "Close"),
+        Binding("question_mark", "dismiss_help", "Close"),
+    ]
+
+    DEFAULT_CSS = """
+    HelpModal {
+        align: center middle;
+    }
+
+    HelpModal > Container {
+        width: 50;
+        height: auto;
+        background: $surface;
+        border: solid $primary;
+        padding: 1 2;
+    }
+
+    HelpModal > Container > Label#help-title {
+        text-style: bold;
+        text-align: center;
+        margin-bottom: 1;
+    }
+
+    HelpModal > Container > Static#help-content {
+        margin-bottom: 1;
+    }
+
+    HelpModal > Container > Static#help-footer {
+        color: $text-muted;
+        text-align: center;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Container():
+            yield Label("Keyboard Shortcuts", id="help-title")
+            yield Static(
+                "  [R]  Start recording\n"
+                "  [S]  Stop recording\n"
+                "  [D]  Select audio device\n"
+                "  [?]  Show this help\n"
+                "  [Q]  Quit application",
+                id="help-content"
+            )
+            yield Static("Press any key to close", id="help-footer")
+
+    def action_dismiss_help(self) -> None:
+        """Dismiss the help overlay."""
+        self.dismiss(None)
+
+    def on_key(self, event) -> None:
+        """Any key dismisses the help overlay."""
+        self.dismiss(None)
+
+
 class SessionNameModal(ModalScreen[str]):
     """Modal dialog to prompt for session name before recording."""
     
@@ -749,9 +808,8 @@ class EchologTUI(App):
         log_panel.add_entry("Device selection requested (not yet implemented)")
     
     def action_show_help(self) -> None:
-        """Show help overlay (placeholder)."""
-        log_panel = self.query_one(LogPanel)
-        log_panel.add_entry("Help: [R]ecord [S]top [D]evices [Q]uit")
+        """Show help overlay with keyboard shortcuts."""
+        self.push_screen(HelpModal())
 
 
 def run_tui(recorder: "EchologRecorder | None" = None) -> None:

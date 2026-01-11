@@ -168,3 +168,20 @@ Thread: https://ampcode.com/threads/T-019bad0e-f333-7511-971e-55f491dadfc7
   - Pass pre-fetched status dict between sync methods to avoid redundant `get_status()` calls
   - InfoPanel.update_info() accepts kwargs including `disk_free_bytes` for warning logic
 ---
+
+## 2026-01-11 - US-013
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Implemented: Help overlay modal with keyboard shortcuts
+- Files changed:
+  - echolog_tui.py (modified) - Added HelpModal class with keyboard shortcuts display, updated action_show_help() to push modal
+  - scripts/ralph/prd.json (modified) - Synced PRD to mark US-006, US-007, US-009, US-010, US-011, US-012, US-013 as passing
+- Acceptance criteria met:
+  - Pressing '?' shows modal overlay with shortcuts list
+  - Lists all keybindings: r, s, d, q, ?
+  - Any key or Esc dismisses overlay
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - ModalScreen[None] used when no return value needed (unlike ModalScreen[str] for SessionNameModal)
+  - on_key() event handler catches any key press for "press any key to close" behavior
+  - PRD and progress.txt can get out of sync - always verify code state before implementing
+---
