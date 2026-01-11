@@ -152,36 +152,60 @@ class SegmentPanel(Static):
 
 
 class ChunkPanel(Static):
-    """Display list of recorded chunks."""
+    """Display list of recorded chunks with scrolling support."""
     
     DEFAULT_CSS = """
     ChunkPanel {
         border: solid green;
         padding: 0 1;
         height: 8;
+        overflow-y: auto;
     }
     """
     
     def __init__(self) -> None:
         super().__init__()
-        self.chunks: list[str] = []
+        self._chunks: list[dict] = []
+        self._visible_lines = 6
     
     def compose(self) -> ComposeResult:
         yield Label("No chunks yet", id="chunks-label")
     
-    def add_chunk(self, chunk_name: str, size_mb: float = 0.0, in_progress: bool = False) -> None:
-        self.chunks.append((chunk_name, size_mb, in_progress))
+    def update_chunks(self, chunks: list[dict]) -> None:
+        """Update the chunk list display.
+        
+        Args:
+            chunks: List of chunk dicts with 'filename', 'size_bytes', 'finalized' keys.
+        """
+        self._chunks = chunks
         self._update_display()
     
     def _update_display(self) -> None:
-        if not self.chunks:
+        if not self._chunks:
             text = "No chunks yet"
         else:
             lines = []
-            for name, size, in_progress in self.chunks[-6:]:  # Show last 6
+            # Show last N chunks to fit in visible area, auto-scroll to latest
+            visible_chunks = self._chunks[-self._visible_lines:]
+            for chunk in visible_chunks:
+                filename = chunk.get('filename', 'unknown')
+                size_bytes = chunk.get('size_bytes', 0)
+                finalized = chunk.get('finalized', False)
+                
+                # Determine if this is the last chunk (in-progress if not finalized)
+                is_last = chunk == self._chunks[-1]
+                in_progress = is_last and not finalized
+                
                 marker = "◐" if in_progress else "✓"
-                size_str = f"{size:.1f} MB" if size > 0 else "(rec...)"
-                lines.append(f"{marker} {name}  {size_str}")
+                
+                # Format size: show MB for finalized, "(rec...)" for in-progress
+                if in_progress:
+                    size_str = "(rec...)"
+                else:
+                    size_mb = size_bytes / (1024 * 1024)
+                    size_str = f"{size_mb:.1f} MB"
+                
+                lines.append(f"{marker} {filename}  {size_str}")
             text = "\n".join(lines)
         
         label = self.query_one("#chunks-label", Label)
@@ -400,6 +424,9 @@ class EchologTUI(App):
                 # Reset segment progress when recording stops
                 segment_panel = self.query_one(SegmentPanel)
                 segment_panel.update_progress(0, 0, 300)
+                # Clear chunk list when recording stops
+                chunk_panel = self.query_one(ChunkPanel)
+                chunk_panel.update_chunks([])
     
     def _sync_info_panel(self) -> None:
         """Sync the info panel with recorder config."""
@@ -440,6 +467,21 @@ class EchologTUI(App):
             segment_elapsed=status.get("segment_elapsed_seconds", 0),
             segment_duration=status.get("segment_duration_seconds", 300)
         )
+        
+        # Update chunk list
+        self._sync_chunks(status)
+    
+    def _sync_chunks(self, status: dict | None = None) -> None:
+        """Sync the chunk panel with recorder chunk data."""
+        if self.recorder is None:
+            return
+        
+        if status is None:
+            status = self.recorder.get_status()
+        
+        chunks = status.get("chunks", [])
+        chunk_panel = self.query_one(ChunkPanel)
+        chunk_panel.update_chunks(chunks)
     
     def action_quit(self) -> None:
         """Quit the application."""

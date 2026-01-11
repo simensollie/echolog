@@ -723,6 +723,29 @@ class EchologRecorder:
             'wav': 'WAV'
         }.get(fmt, fmt.upper())
         
+        # Build chunk list with filenames, sizes, and completion status
+        chunks: List[Dict[str, Any]] = []
+        if self._session_dir is not None and self.session_id:
+            try:
+                fmt = self.config.get('recording', 'format', fallback='ogg')
+                session_name = self.session_id.split('_')[0]
+                pattern = f"{session_name}_*_chunk_*.{fmt}"
+                chunk_files = sorted(self._session_dir.glob(pattern))
+                for chunk_file in chunk_files:
+                    name = chunk_file.name
+                    try:
+                        size_bytes = chunk_file.stat().st_size
+                    except (FileNotFoundError, OSError):
+                        size_bytes = 0
+                    is_finalized = name in self._finalized_chunks
+                    chunks.append({
+                        'filename': name,
+                        'size_bytes': size_bytes,
+                        'finalized': is_finalized,
+                    })
+            except Exception:
+                pass
+        
         return {
             'recording': self.is_recording(),
             'session_id': self.session_id,
@@ -736,6 +759,7 @@ class EchologRecorder:
             'device_name': device_name,
             'format': format_display,
             'sample_rate': self.config.get('recording', 'sample_rate', fallback='16000'),
+            'chunks': chunks,
         }
     
     def check_recording_files(self) -> List[str]:
