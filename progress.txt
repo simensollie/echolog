@@ -185,3 +185,42 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - on_key() event handler catches any key press for "press any key to close" behavior
   - PRD and progress.txt can get out of sync - always verify code state before implementing
 ---
+
+## 2026-01-11 - US-014
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Implemented: Device selection screen with list navigation
+- Files changed:
+  - echolog_tui.py (modified) - Added DeviceSelectionScreen modal with device list, arrow key navigation, and selection callback
+  - scripts/ralph/prd.json (modified) - Marked US-014 as passing
+- Acceptance criteria met:
+  - Pressing 'd' opens device selection screen (DeviceSelectionScreen modal)
+  - Lists all available audio sources from detect_audio_devices()
+  - Current device highlighted with green ● marker
+  - Arrow keys navigate list (up/down), Enter selects
+  - Esc returns to dashboard without changing device
+  - Selected device used for next recording (saved to recorder config)
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - DeviceSelectionScreen uses ModalScreen[str] to return the selected device name
+  - _update_selection() updates CSS classes for visual feedback on navigation
+  - Set auto_detect_device to 'false' when user explicitly selects a device
+  - _sync_info_panel() refreshes the InfoPanel to show the new device immediately
+---
+
+## 2026-01-11 - US-015
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Implemented: Time limit indicator in InfoPanel
+- Files changed:
+  - echolog.py (modified) - Added `time_limit_seconds` and `time_limit_remaining_seconds` to `get_status()` return dict
+  - echolog_tui.py (modified) - Updated `InfoPanel` with `time_limit` and `time_limit_remaining` fields, `_render_info()` conditionally shows limit line, `_sync_info_panel()` formats time limit values
+- Acceptance criteria met:
+  - Info panel shows remaining time when time_limit is configured (e.g., "Limit: 2h (1h 30m left)")
+  - Indicator hidden when no limit set (time_limit=0) - empty string means no display
+  - Updates during recording via `_sync_info_panel()` called from `_update_timer()`
+  - Typecheck passes (Python imports verified)
+- **Learnings for future iterations:**
+  - `_time_limit_seconds` is stored on EchologRecorder, set during `start_recording()`
+  - Time limit remaining calculated as `max(0, time_limit_seconds - elapsed_seconds)`
+  - InfoPanel uses `height: auto; min-height: 7;` to accommodate variable number of lines
+  - Format time as "Xh Ym" for hours+minutes, "Xm" for minutes only, "Xs" for seconds
+---

@@ -811,6 +811,12 @@ class EchologRecorder:
         except Exception:
             pass
         
+        # Calculate time limit remaining
+        time_limit_seconds = self._time_limit_seconds
+        time_limit_remaining_seconds = 0
+        if time_limit_seconds > 0 and self.is_recording() and elapsed_seconds > 0:
+            time_limit_remaining_seconds = max(0, time_limit_seconds - elapsed_seconds)
+
         return {
             'recording': self.is_recording(),
             'session_id': self.session_id,
@@ -827,6 +833,8 @@ class EchologRecorder:
             'chunks': chunks,
             'disk_free_bytes': disk_free_bytes,
             'log_entries': self.get_recent_log_entries(),
+            'time_limit_seconds': time_limit_seconds,
+            'time_limit_remaining_seconds': time_limit_remaining_seconds,
         }
     
     def check_recording_files(self) -> List[str]:

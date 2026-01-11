@@ -460,9 +460,10 @@ class InfoPanel(Static):
     InfoPanel {
         border: solid green;
         padding: 0 1;
-        height: 8;
+        height: auto;
+        min-height: 7;
     }
-    
+
     InfoPanel .disk-warning {
         color: #ff6600;
         text-style: bold;
@@ -470,7 +471,7 @@ class InfoPanel(Static):
     """
     
     LOW_DISK_THRESHOLD_BYTES = 1024 * 1024 * 1024  # 1 GB
-    
+
     def __init__(self) -> None:
         super().__init__()
         self.device = "Not selected"
@@ -479,18 +480,27 @@ class InfoPanel(Static):
         self.segment_duration = "5 min"
         self.disk_free = "-- GB free"
         self.disk_free_bytes = 0
+        self.time_limit = ""  # Empty string means no limit
+        self.time_limit_remaining = ""
     
     def compose(self) -> ComposeResult:
         yield Label(self._render_info(), id="info-label")
     
     def _render_info(self) -> str:
-        return (
-            f"Device: {self.device}\n"
-            f"Format: {self.format}\n"
-            f"Rate: {self.sample_rate}\n"
-            f"Segment: {self.segment_duration}\n"
-            f"Disk: {self.disk_free}"
-        )
+        lines = [
+            f"Device: {self.device}",
+            f"Format: {self.format}",
+            f"Rate: {self.sample_rate}",
+            f"Segment: {self.segment_duration}",
+            f"Disk: {self.disk_free}",
+        ]
+        # Only show time limit line if a limit is configured
+        if self.time_limit:
+            if self.time_limit_remaining:
+                lines.append(f"Limit: {self.time_limit} ({self.time_limit_remaining} left)")
+            else:
+                lines.append(f"Limit: {self.time_limit}")
+        return "\n".join(lines)
     
     def update_info(self, **kwargs) -> None:
         for key, value in kwargs.items():
@@ -763,24 +773,24 @@ class EchologTUI(App):
     
     def _sync_info_panel(self, status: dict | None = None) -> None:
         """Sync the info panel with recorder config.
-        
+
         Args:
             status: Optional pre-fetched status dict. If None, fetches from recorder.
         """
         if self.recorder is None:
             return
-        
+
         if status is None:
             status = self.recorder.get_status()
         info_panel = self.query_one(InfoPanel)
-        
+
         # Format segment duration as human-readable
         segment_secs = status.get("segment_duration_seconds", 300)
         if segment_secs >= 60:
             segment_str = f"{segment_secs // 60} min"
         else:
             segment_str = f"{segment_secs} sec"
-        
+
         # Format disk space as human-readable
         disk_free_bytes = status.get("disk_free_bytes", 0)
         if disk_free_bytes >= 1024 * 1024 * 1024:
@@ -789,14 +799,46 @@ class EchologTUI(App):
             disk_str = f"{disk_free_bytes / (1024 * 1024):.0f} MB free"
         else:
             disk_str = "-- GB free"
-        
+
+        # Format time limit as human-readable (e.g., "2h", "30m")
+        time_limit_secs = status.get("time_limit_seconds", 0)
+        time_limit_str = ""
+        if time_limit_secs > 0:
+            if time_limit_secs >= 3600:
+                hours = time_limit_secs // 3600
+                time_limit_str = f"{hours}h"
+            elif time_limit_secs >= 60:
+                mins = time_limit_secs // 60
+                time_limit_str = f"{mins}m"
+            else:
+                time_limit_str = f"{time_limit_secs}s"
+
+        # Format time limit remaining as human-readable (e.g., "1h 30m left")
+        time_limit_remaining_secs = status.get("time_limit_remaining_seconds", 0)
+        time_limit_remaining_str = ""
+        if time_limit_secs > 0 and status.get("recording", False):
+            if time_limit_remaining_secs >= 3600:
+                hours = time_limit_remaining_secs // 3600
+                mins = (time_limit_remaining_secs % 3600) // 60
+                if mins > 0:
+                    time_limit_remaining_str = f"{hours}h {mins}m"
+                else:
+                    time_limit_remaining_str = f"{hours}h"
+            elif time_limit_remaining_secs >= 60:
+                mins = time_limit_remaining_secs // 60
+                time_limit_remaining_str = f"{mins}m"
+            else:
+                time_limit_remaining_str = f"{time_limit_remaining_secs}s"
+
         info_panel.update_info(
             device=status.get("device_name", "Not selected"),
             format=status.get("format", "OGG/Opus"),
             sample_rate=f"{status.get('sample_rate', '16000')} Hz",
             segment_duration=segment_str,
             disk_free=disk_str,
-            disk_free_bytes=disk_free_bytes
+            disk_free_bytes=disk_free_bytes,
+            time_limit=time_limit_str,
+            time_limit_remaining=time_limit_remaining_str
         )
     
     def _update_timer(self) -> None:
