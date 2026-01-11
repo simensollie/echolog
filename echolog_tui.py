@@ -313,6 +313,8 @@ class EchologTUI(App):
         self._sync_recorder_status()
         # Start periodic status polling (every 0.5 seconds)
         self.set_interval(0.5, self._sync_recorder_status)
+        # Start timer update (every 1 second for smooth HH:MM:SS display)
+        self.set_interval(1.0, self._update_timer)
     
     def _sync_recorder_status(self) -> None:
         """Sync the status panel with the recorder state."""
@@ -331,6 +333,19 @@ class EchologTUI(App):
                 status_panel.update_status("Recording", session_id)
             else:
                 status_panel.update_status("Idle", None)
+                # Reset timer to 00:00:00 when recording stops
+                timer_panel = self.query_one(TimerPanel)
+                timer_panel.update_time(0)
+    
+    def _update_timer(self) -> None:
+        """Update the timer display with elapsed recording time."""
+        if self.recorder is None:
+            return
+        
+        status = self.recorder.get_status()
+        elapsed_seconds = status.get("elapsed_seconds", 0)
+        timer_panel = self.query_one(TimerPanel)
+        timer_panel.update_time(elapsed_seconds)
     
     def action_quit(self) -> None:
         """Quit the application."""

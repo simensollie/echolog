@@ -692,11 +692,18 @@ class EchologRecorder:
         if self._session_dir is not None:
             candidate = self._session_dir / 'session.log'
             log_path = str(candidate)
+        
+        # Calculate elapsed time if recording
+        elapsed_seconds = 0
+        if self.is_recording() and self._recording_start_monotonic is not None:
+            elapsed_seconds = int(time.monotonic() - self._recording_start_monotonic)
+        
         return {
             'recording': self.is_recording(),
             'session_id': self.session_id,
             'process_id': self.ffmpeg_process.pid if self.ffmpeg_process else None,
-            'log_path': log_path
+            'log_path': log_path,
+            'elapsed_seconds': elapsed_seconds
         }
     
     def check_recording_files(self) -> List[str]:
