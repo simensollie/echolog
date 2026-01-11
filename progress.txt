@@ -116,3 +116,21 @@ Thread: https://ampcode.com/threads/T-019bad08-199d-7567-912c-fb3f3cfd3aff
   - `_finalized_chunks` set tracks which chunks have been finalized by ffmpeg
   - Pattern `{session_name}_*_chunk_*.{fmt}` matches all chunks for a session
 ---
+
+## 2026-01-11 - US-006
+Thread: https://ampcode.com/threads/T-019bad0a-c7f0-748d-a097-c66f2dbe5bcd
+- Implemented: Start recording via keyboard with 'r' key
+- Files changed:
+  - echolog_tui.py (modified) - Added SessionNameModal modal screen with Input widget, updated action_start_recording() to show modal, added _on_session_name_submitted() callback to start recording
+- Acceptance criteria met:
+  - Pressing 'r' opens session name prompt (SessionNameModal)
+  - After entering name and pressing Enter, recording starts via recorder.start_recording()
+  - Status updates to "Recording" (via _sync_recorder_status with force refresh)
+  - Error shown if recording fails (logged to LogPanel)
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - Textual's ModalScreen[T] with generic type T allows returning values via dismiss(value)
+  - push_screen() accepts a callback function that receives the dismissed value
+  - Use on_input_submitted() to handle Enter key in Input widgets
+  - Force status sync by setting _last_status = None before calling _sync_recorder_status()
+---

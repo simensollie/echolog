@@ -64,15 +64,15 @@ Add an interactive terminal user interface for echolog that provides real-time f
 - [x] List scrolls if more chunks than visible space
 - [x] Typecheck passes
 
-### US-006: Start recording via keyboard
+### US-006: Start recording via keyboard ✅
 **Description:** As a user, I want to start recording with a keypress so I can quickly begin sessions.
 
 **Acceptance Criteria:**
-- [ ] Pressing `r` opens session name prompt
-- [ ] After entering name, recording starts
-- [ ] Status updates to "Recording"
-- [ ] Error shown if recording fails to start
-- [ ] Typecheck passes
+- [x] Pressing `r` opens session name prompt
+- [x] After entering name, recording starts
+- [x] Status updates to "Recording"
+- [x] Error shown if recording fails to start
+- [x] Typecheck passes
 
 ### US-007: Stop recording via keyboard
 **Description:** As a user, I want to stop recording with a keypress so I can end sessions quickly.
