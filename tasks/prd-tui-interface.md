@@ -53,16 +53,16 @@ Add an interactive terminal user interface for echolog that provides real-time f
 - [x] Progress resets when new chunk starts
 - [x] Typecheck passes
 
-### US-005: Display chunk list
+### US-005: Display chunk list ✅
 **Description:** As a user, I want to see a list of created chunks so I can track recording output.
 
 **Acceptance Criteria:**
-- [ ] List shows all chunks created in current session
-- [ ] Each chunk shows filename and size
-- [ ] Completed chunks marked with checkmark
-- [ ] Current/in-progress chunk indicated
-- [ ] List scrolls if more chunks than visible space
-- [ ] Typecheck passes
+- [x] List shows all chunks created in current session
+- [x] Each chunk shows filename and size
+- [x] Completed chunks marked with checkmark
+- [x] Current/in-progress chunk indicated
+- [x] List scrolls if more chunks than visible space
+- [x] Typecheck passes
 
 ### US-006: Start recording via keyboard
 **Description:** As a user, I want to start recording with a keypress so I can quickly begin sessions.

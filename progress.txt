@@ -96,3 +96,23 @@ Thread: https://ampcode.com/threads/T-019bad05-2b33-77bf-92f6-d25c998a32d4
   - Format display names: {'ogg': 'OGG/Opus', 'mp3': 'MP3', 'flac': 'FLAC'}
   - InfoPanel.update_info() accepts kwargs to update individual fields
 ---
+
+## 2026-01-11 - US-005
+Thread: https://ampcode.com/threads/T-019bad08-199d-7567-912c-fb3f3cfd3aff
+- Implemented: Chunk list display with real-time updates
+- Files changed:
+  - echolog.py (modified) - Extended `get_status()` to return `chunks` list with filename, size_bytes, and finalized status
+  - echolog_tui.py (modified) - Updated `ChunkPanel` with `update_chunks()` method, added `_sync_chunks()` to sync from recorder
+- Acceptance criteria met:
+  - List shows all chunks created in current session (via get_status() chunks field)
+  - Each chunk shows filename and size (MB format)
+  - Completed chunks marked with ✓ checkmark
+  - Current/in-progress chunk indicated with ◐ and "(rec...)"
+  - List auto-scrolls to show last 6 chunks
+  - Chunk list cleared when recording stops
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - Use `_session_dir` to find chunks rather than reconstructing path from session_id
+  - `_finalized_chunks` set tracks which chunks have been finalized by ffmpeg
+  - Pattern `{session_name}_*_chunk_*.{fmt}` matches all chunks for a session
+---
