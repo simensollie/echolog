@@ -251,6 +251,62 @@ class EchologRecorder:
             except Exception:
                 pass
 
+    def get_recent_log_entries(self, max_entries: int = 5) -> List[Dict[str, str]]:
+        """Read the most recent log entries from the session log file.
+        
+        Args:
+            max_entries: Maximum number of entries to return.
+        
+        Returns:
+            List of dicts with 'timestamp', 'level', 'message' keys.
+            Most recent entries are last.
+        """
+        entries: List[Dict[str, str]] = []
+        if self._session_dir is None:
+            return entries
+        
+        log_path = self._session_dir / "session.log"
+        if not log_path.exists():
+            return entries
+        
+        try:
+            with open(log_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Take last N lines
+            recent_lines = lines[-max_entries:] if len(lines) > max_entries else lines
+            
+            # Parse each line: "2026-01-11T10:15:03Z INFO echolog.session.xxx: message"
+            log_pattern = re.compile(
+                r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s+'  # timestamp
+                r'(DEBUG|INFO|WARNING|ERROR)\s+'              # level
+                r'[^:]+:\s*'                                  # logger name
+                r'(.*)$'                                      # message
+            )
+            
+            for line in recent_lines:
+                line = line.strip()
+                if not line:
+                    continue
+                match = log_pattern.match(line)
+                if match:
+                    entries.append({
+                        'timestamp': match.group(1),
+                        'level': match.group(2),
+                        'message': match.group(3),
+                    })
+                else:
+                    # Fallback for non-matching lines
+                    entries.append({
+                        'timestamp': '',
+                        'level': 'INFO',
+                        'message': line,
+                    })
+        except Exception:
+            pass
+        
+        return entries
+
     def detect_audio_devices(self) -> List[Dict[str, str]]:
         """Detect available PulseAudio monitor sources."""
         try:
@@ -770,6 +826,7 @@ class EchologRecorder:
             'sample_rate': self.config.get('recording', 'sample_rate', fallback='16000'),
             'chunks': chunks,
             'disk_free_bytes': disk_free_bytes,
+            'log_entries': self.get_recent_log_entries(),
         }
     
     def check_recording_files(self) -> List[str]:

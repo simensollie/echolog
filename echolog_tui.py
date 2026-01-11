@@ -326,7 +326,7 @@ class InfoPanel(Static):
 
 
 class LogPanel(Static):
-    """Display session log entries."""
+    """Display session log entries with color-coded levels."""
     
     DEFAULT_CSS = """
     LogPanel {
@@ -334,27 +334,105 @@ class LogPanel(Static):
         padding: 0 1;
         height: 6;
     }
+    
+    LogPanel .log-error {
+        color: #ff4444;
+        text-style: bold;
+    }
+    
+    LogPanel .log-warning {
+        color: #ffaa00;
+    }
+    
+    LogPanel .log-info {
+        color: $text;
+    }
+    
+    LogPanel .log-debug {
+        color: $text-muted;
+    }
     """
     
     def __init__(self) -> None:
         super().__init__()
         self.log_entries: list[str] = []
+        self._session_log_entries: list[dict] = []
         self.max_entries = 5
     
     def compose(self) -> ComposeResult:
         yield Label("No log entries", id="log-label")
     
-    def add_entry(self, entry: str) -> None:
-        self.log_entries.append(entry)
+    def add_entry(self, entry: str, level: str = "INFO") -> None:
+        """Add a local TUI message to the log panel.
+        
+        Args:
+            entry: The message text.
+            level: Log level (DEBUG, INFO, WARNING, ERROR).
+        """
+        self.log_entries.append({"message": entry, "level": level.upper()})
         if len(self.log_entries) > self.max_entries:
             self.log_entries = self.log_entries[-self.max_entries:]
         self._update_display()
     
+    def update_session_log(self, entries: list[dict]) -> None:
+        """Update with session log entries from recorder.
+        
+        Args:
+            entries: List of dicts with 'timestamp', 'level', 'message' keys.
+        """
+        self._session_log_entries = entries
+        self._update_display()
+    
+    def _format_entry(self, entry: dict) -> str:
+        """Format a log entry for display with level prefix."""
+        level = entry.get("level", "INFO").upper()
+        message = entry.get("message", "")
+        timestamp = entry.get("timestamp", "")
+        
+        # Format timestamp: extract HH:MM:SS from ISO format
+        if timestamp and "T" in timestamp:
+            time_part = timestamp.split("T")[1].replace("Z", "")
+            prefix = f"{time_part} {level}"
+        else:
+            prefix = level
+        
+        return f"{prefix}  {message}"
+    
     def _update_display(self) -> None:
-        if not self.log_entries:
+        # Combine session log entries with local TUI entries
+        # Session log entries take priority; local entries shown if no session
+        all_entries = []
+        
+        if self._session_log_entries:
+            all_entries = self._session_log_entries[-self.max_entries:]
+        
+        # Add local entries that aren't duplicates
+        for entry in self.log_entries:
+            if isinstance(entry, dict):
+                all_entries.append(entry)
+            else:
+                all_entries.append({"message": str(entry), "level": "INFO"})
+        
+        # Keep only the most recent entries
+        all_entries = all_entries[-self.max_entries:]
+        
+        if not all_entries:
             text = "No log entries"
         else:
-            text = "\n".join(self.log_entries)
+            lines = []
+            for entry in all_entries:
+                line = self._format_entry(entry)
+                level = entry.get("level", "INFO").upper()
+                # Apply Rich markup for coloring
+                if level == "ERROR":
+                    line = f"[#ff4444 bold]{line}[/]"
+                elif level == "WARNING":
+                    line = f"[#ffaa00]{line}[/]"
+                elif level == "DEBUG":
+                    line = f"[#888888]{line}[/]"
+                lines.append(line)
+            text = "\n".join(lines)
+        
         label = self.query_one("#log-label", Label)
         label.update(text)
 
@@ -563,6 +641,21 @@ class EchologTUI(App):
         
         # Update disk space (reuse status to avoid extra call)
         self._sync_info_panel(status)
+        
+        # Update session log entries
+        self._sync_log_panel(status)
+    
+    def _sync_log_panel(self, status: dict | None = None) -> None:
+        """Sync the log panel with session log entries from recorder."""
+        if self.recorder is None:
+            return
+        
+        if status is None:
+            status = self.recorder.get_status()
+        
+        log_entries = status.get("log_entries", [])
+        log_panel = self.query_one(LogPanel)
+        log_panel.update_session_log(log_entries)
     
     def _sync_chunks(self, status: dict | None = None) -> None:
         """Sync the chunk panel with recorder chunk data."""
