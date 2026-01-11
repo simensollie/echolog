@@ -885,7 +885,8 @@ def main():
                     print(f"  No {ext.upper()} files found")
     
     elif args.action == 'tui':
-        print("TUI mode placeholder - Textual UI coming soon!")
+        from echolog_tui import run_tui
+        run_tui()
 
 
 if __name__ == '__main__':
