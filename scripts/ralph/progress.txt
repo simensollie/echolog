@@ -1,3 +1,15 @@
 # Ralph Progress Log
 Started: Sun Jan 11 01:13:44 PM CET 2026
 ---
+
+## 2026-01-11 - US-001
+Thread: https://ampcode.com/threads/T-019bacfa-06df-7704-bbb1-6f841f13e5bf
+- Added textual>=0.50.0 to requirements.txt
+- Added 'tui' action to argparse choices in echolog.py
+- Implemented placeholder handler that prints message and exits
+- Files changed: requirements.txt, echolog.py
+- **Learnings for future iterations:**
+  - The codebase uses a single echolog.py file with EchologRecorder class
+  - CLI uses argparse with action-based routing in main()
+  - Python virtual environment is in .venv
+---
