@@ -553,6 +553,7 @@ class InfoPanel(Static):
         self.disk_free_bytes = 0
         self.time_limit = ""  # Empty string means no limit
         self.time_limit_remaining = ""
+        self.time_limit_remaining_seconds = 0
     
     def compose(self) -> ComposeResult:
         yield Label(self._render_info(), id="info-label")
@@ -568,7 +569,10 @@ class InfoPanel(Static):
         # Only show time limit line if a limit is configured
         if self.time_limit:
             if self.time_limit_remaining:
-                lines.append(f"Limit: {self.time_limit} ({self.time_limit_remaining} left)")
+                time_limit_line = f"Limit: {self.time_limit} ({self.time_limit_remaining} left)"
+                if 0 < self.time_limit_remaining_seconds < self.LOW_TIME_THRESHOLD_SECONDS:
+                    time_limit_line = f"[#ffaa00 bold]{time_limit_line}[/]"
+                lines.append(time_limit_line)
             else:
                 lines.append(f"Limit: {self.time_limit}")
         return "\n".join(lines)
@@ -1039,7 +1043,8 @@ class EchologTUI(App):
             disk_free=disk_str,
             disk_free_bytes=disk_free_bytes,
             time_limit=time_limit_str,
-            time_limit_remaining=time_limit_remaining_str
+            time_limit_remaining=time_limit_remaining_str,
+            time_limit_remaining_seconds=time_limit_remaining_secs,
         )
     
     def _update_timer(self) -> None:

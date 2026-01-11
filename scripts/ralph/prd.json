@@ -71,8 +71,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "Part of US-012 from original PRD, time limit display exists but warning color missing"
+      "passes": true,
+      "notes": "Added warning color when time limit remaining is under 5 minutes; includes test coverage"
     }
   ]
 }

@@ -4,7 +4,7 @@ import pytest
 
 from textual.widgets import Input
 
-from echolog_tui import DeviceSelectionScreen, EchologTUI, LogPanel, SessionNameModal, VUMeterPanel
+from echolog_tui import DeviceSelectionScreen, EchologTUI, InfoPanel, LogPanel, SessionNameModal, VUMeterPanel
 
 
 class FakeRecorder:
@@ -230,6 +230,23 @@ async def test_log_panel_colors_warnings_yellow() -> None:
         log_panel.add_entry("Test warning", level="WARNING")
         # Verify WARNING is added with correct level
         assert any(e.get("level") == "WARNING" for e in log_panel.log_entries)
+
+
+@pytest.mark.asyncio
+async def test_time_limit_warning_when_low() -> None:
+    """US-005: Time limit indicator shows warning color when low."""
+    recorder = FakeRecorder()
+    app = EchologTUI(recorder=recorder)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        info_panel = app.query_one(InfoPanel)
+        info_panel.update_info(
+            time_limit="10m",
+            time_limit_remaining="4m",
+            time_limit_remaining_seconds=4 * 60,
+        )
+        text = info_panel._render_info()
+        assert "[#ffaa00" in text
 
 
 @pytest.mark.asyncio

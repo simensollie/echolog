@@ -64,8 +64,9 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   # claude --dangerously-skip-permissions --model claude-sonnet-4-5-20250929
   amp=(amp --dangerously-allow-all)
   claude=(claude --dangerously-skip-permissions --model claude-opus-4-5-20251101)
+  codex=(codex exec --yolo --model gpt-5.2-codex)
   # Run model with the ralph prompt
-  OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | "${claude[@]}" 2>&1 | tee /dev/stderr) || true
+  OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | "${codex[@]}" 2>&1 | tee /dev/stderr) || true
   
   # Check for completion signal
   if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then

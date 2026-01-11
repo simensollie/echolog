@@ -74,3 +74,16 @@ Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
   - When widget may not exist, check flag before calling query_one() to avoid NoMatches exception
   - Dashboard accepts constructor params for configuration options like no_meter
 ---
+## 2026-01-12 00:41 - US-005
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- **What was implemented:**
+  - Added warning color for time limit line when remaining time is under 5 minutes
+  - Added test coverage for low time limit warning markup
+- **Files changed:**
+  - echolog_tui.py
+  - tests/test_tui_commands.py
+  - scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - InfoPanel can use Rich markup to highlight only the time limit line without coloring the entire panel
+  - Pass time_limit_remaining_seconds through update_info() to enable threshold-based warnings
+---
