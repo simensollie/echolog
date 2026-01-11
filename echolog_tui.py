@@ -9,11 +9,71 @@ from typing import TYPE_CHECKING
 
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, Static, Label
+from textual.widgets import Header, Footer, Static, Label, Input
 from textual.binding import Binding
+from textual.screen import ModalScreen
 
 if TYPE_CHECKING:
     from echolog import EchologRecorder
+
+
+class SessionNameModal(ModalScreen[str]):
+    """Modal dialog to prompt for session name before recording."""
+    
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+    ]
+    
+    DEFAULT_CSS = """
+    SessionNameModal {
+        align: center middle;
+    }
+    
+    SessionNameModal > Container {
+        width: 60;
+        height: auto;
+        background: $surface;
+        border: solid $primary;
+        padding: 1 2;
+    }
+    
+    SessionNameModal > Container > Label {
+        margin-bottom: 1;
+    }
+    
+    SessionNameModal > Container > Input {
+        width: 100%;
+    }
+    
+    SessionNameModal > Container > Static {
+        margin-top: 1;
+        color: $text-muted;
+        text-align: center;
+    }
+    """
+    
+    def compose(self) -> ComposeResult:
+        with Container():
+            yield Label("Enter session name:")
+            yield Input(placeholder="my_session", id="session-name-input")
+            yield Static("Press Enter to start, Escape to cancel")
+    
+    def on_mount(self) -> None:
+        """Focus the input when modal opens."""
+        self.query_one(Input).focus()
+    
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle Enter key in input - start recording."""
+        session_name = event.value.strip()
+        if session_name:
+            self.dismiss(session_name)
+        else:
+            # Shake or notify invalid - just refocus for now
+            self.query_one(Input).focus()
+    
+    def action_cancel(self) -> None:
+        """Handle Escape key - cancel recording."""
+        self.dismiss("")
 
 
 class StatusPanel(Static):
@@ -488,9 +548,46 @@ class EchologTUI(App):
         self.exit()
     
     def action_start_recording(self) -> None:
-        """Start recording (placeholder)."""
+        """Open session name prompt and start recording."""
+        if self.recorder is None:
+            log_panel = self.query_one(LogPanel)
+            log_panel.add_entry("ERROR: No recorder available")
+            return
+        
+        # Check if already recording
+        if self.recorder.is_recording():
+            log_panel = self.query_one(LogPanel)
+            log_panel.add_entry("Already recording - stop first")
+            return
+        
+        # Show modal to get session name
+        self.push_screen(SessionNameModal(), self._on_session_name_submitted)
+    
+    def _on_session_name_submitted(self, session_name: str) -> None:
+        """Callback when session name is submitted from modal."""
         log_panel = self.query_one(LogPanel)
-        log_panel.add_entry("Recording start requested (not yet implemented)")
+        
+        if not session_name:
+            log_panel.add_entry("Recording cancelled")
+            return
+        
+        if self.recorder is None:
+            log_panel.add_entry("ERROR: No recorder available")
+            return
+        
+        log_panel.add_entry(f"Starting recording: {session_name}")
+        
+        try:
+            success = self.recorder.start_recording(session_name)
+            if success:
+                log_panel.add_entry(f"Recording started: {session_name}")
+                # Force immediate status sync
+                self._last_status = None
+                self._sync_recorder_status()
+            else:
+                log_panel.add_entry(f"ERROR: Failed to start recording")
+        except Exception as e:
+            log_panel.add_entry(f"ERROR: {e}")
     
     def action_stop_recording(self) -> None:
         """Stop recording (placeholder)."""
