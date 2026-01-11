@@ -236,7 +236,51 @@ Add an interactive terminal user interface for echolog that provides real-time f
 
 ## Open Questions
 
-- Should we persist last-used device between sessions?
-- Should configuration editing be in-TUI or just display current config?
+- Should we persist last-used device between sessions? yes
+- Should configuration editing be in-TUI or just display current config? edit in tui
 - What audio level parsing method works best (ffmpeg stderr vs PulseAudio)?
-- Should we add mouse support in Phase 5?
+- Should we add mouse support in Phase 5? not yet
+
+---
+
+## Bugs and Missing Functionality (Discovered During Implementation/Review)
+
+### Bugs (Current Behavior vs Expected)
+
+- **BUG-001: Most keyboard commands appear “non-functional”**
+  - **Observed:** Only `?` (help), `q` (quit), and the Textual command palette work reliably; `r` (record), `s` (stop), `d` (devices) may not trigger.
+  - **Likely cause:** Key binding mismatch when users press **uppercase** shortcuts shown in UI labels (e.g., `Shift+R`) vs bindings only defined for lowercase (`r`), plus focus/event routing differences.
+  - **Impact:** Blocks validation of recording flow (status, timer, chunk list, device selector).
+  - **Fix target:** Bind both lowercase and uppercase keys for main actions; ensure actions are reachable via command palette and keypress.
+
+- **BUG-002: Session names with underscores break chunk discovery/finalization**
+  - **Observed (code-level):** Several recorder methods derive the session folder/pattern using `self.session_id.split('_')[0]`, which truncates session names that contain `_`.
+  - **Impact:** Chunk list may stay empty or incomplete; stop summary may compute wrong directory; “no chunks yet” even when files exist.
+  - **Fix target:** Store a dedicated `session_name` (base) and `session_id` (unique) and use `self._session_dir` + `self.session_id` for globbing instead of string splitting.
+
+### Missing / Not Yet Verified Functionality
+
+- **GAP-001: Log panel user story not complete**
+  - **US-010** remains unchecked; log streaming/highlighting needs verification and may still be incomplete.
+
+- **GAP-002: Device selector not tested end-to-end**
+  - **Observed:** Device modal exists, but selection flow hasn’t been validated due to command issues and dependency on `pactl` output.
+  - **Fix target:** Add unit tests around “press devices key → modal opens → selection updates config”.
+
+- **GAP-003: Recording start/stop not testable (blocked by command issue)**
+  - **Observed:** Without working `r/s`, status/timer/progress and chunk list behavior can’t be validated.
+  - **Fix target:** Restore command handling, then validate status + timer updates via unit tests and a manual smoke test.
+
+- **GAP-004: Default recording name + edit-while-recording**
+  - **Requested:** Start recording with a sensible **default session name**, and allow editing the “name” while recording.
+  - **Constraints:** Renaming on-disk folders/files mid-recording is risky; safest approach is treating this as a **display/session label** that does not change file paths.
+
+### Design Discrepancies (See Attached Images)
+
+- **UI-001: Color/border styling differs from reference**
+  - **Observed:** Panels use bright green borders; reference layout uses subdued/neutral borders suitable for dark terminals.
+  - **Fix target:** Align border color and emphasis with Textual theme variables (e.g., `$primary`, `$surface`) and match the reference’s visual hierarchy.
+
+- **UI-002: Status line/session naming differs from reference**
+  - **Observed:** Status line may show a full internal `session_id` (including timestamp) instead of the clean “Session: meeting_20260111” shown in the mock.
+  - **Fix target:** Show a stable `session_name`/label in the UI; keep unique ID internal.
