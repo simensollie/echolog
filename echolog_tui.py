@@ -5,22 +5,43 @@ Echolog TUI - Terminal User Interface for Echolog Audio Recorder
 A Textual-based interactive terminal interface for managing recording sessions.
 """
 
+from typing import TYPE_CHECKING
+
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Header, Footer, Static, Label
 from textual.binding import Binding
 
+if TYPE_CHECKING:
+    from echolog import EchologRecorder
+
 
 class StatusPanel(Static):
     """Display current recording status."""
     
+    DEFAULT_CSS = """
+    StatusPanel {
+        height: 3;
+        padding: 0 1;
+    }
+    
+    StatusPanel .status-idle {
+        color: $text-muted;
+    }
+    
+    StatusPanel .status-recording {
+        color: #00ff00;
+        text-style: bold;
+    }
+    """
+    
     def __init__(self) -> None:
         super().__init__()
         self.status = "Idle"
-        self.session_id = None
+        self.session_id: str | None = None
     
     def compose(self) -> ComposeResult:
-        yield Label(self._render_status(), id="status-label")
+        yield Label(self._render_status(), id="status-label", classes="status-idle")
     
     def _render_status(self) -> str:
         indicator = "○" if self.status == "Idle" else "●"
@@ -29,11 +50,23 @@ class StatusPanel(Static):
             status_text += f"          Session: {self.session_id}"
         return status_text
     
-    def update_status(self, status: str, session_id: str = None) -> None:
+    def update_status(self, status: str, session_id: str | None = None) -> None:
+        """Update the status display.
+        
+        Args:
+            status: Either 'Idle' or 'Recording'
+            session_id: Current session ID (shown when recording)
+        """
         self.status = status
         self.session_id = session_id
         label = self.query_one("#status-label", Label)
         label.update(self._render_status())
+        # Update CSS class for coloring
+        label.remove_class("status-idle", "status-recording")
+        if status == "Recording":
+            label.add_class("status-recording")
+        else:
+            label.add_class("status-idle")
 
 
 class TimerPanel(Static):
@@ -249,11 +282,6 @@ class EchologTUI(App):
         color: $text-muted;
         height: 1;
     }
-    
-    StatusPanel {
-        height: 3;
-        padding: 0 1;
-    }
     """
     
     TITLE = "ECHOLOG"
@@ -267,9 +295,10 @@ class EchologTUI(App):
         Binding("question_mark", "show_help", "Help"),
     ]
     
-    def __init__(self) -> None:
+    def __init__(self, recorder: "EchologRecorder | None" = None) -> None:
         super().__init__()
-        self.recorder = None
+        self.recorder = recorder
+        self._last_status: bool | None = None
     
     def compose(self) -> ComposeResult:
         yield Header()
@@ -280,6 +309,28 @@ class EchologTUI(App):
         """Called when app is mounted."""
         log_panel = self.query_one(LogPanel)
         log_panel.add_entry("TUI started - Press ? for help")
+        # Initial status sync
+        self._sync_recorder_status()
+        # Start periodic status polling (every 0.5 seconds)
+        self.set_interval(0.5, self._sync_recorder_status)
+    
+    def _sync_recorder_status(self) -> None:
+        """Sync the status panel with the recorder state."""
+        if self.recorder is None:
+            return
+        
+        status = self.recorder.get_status()
+        is_recording = status.get("recording", False)
+        session_id = status.get("session_id")
+        
+        # Only update if status changed to avoid redundant updates
+        if is_recording != self._last_status:
+            self._last_status = is_recording
+            status_panel = self.query_one(StatusPanel)
+            if is_recording:
+                status_panel.update_status("Recording", session_id)
+            else:
+                status_panel.update_status("Idle", None)
     
     def action_quit(self) -> None:
         """Quit the application."""
@@ -306,9 +357,14 @@ class EchologTUI(App):
         log_panel.add_entry("Help: [R]ecord [S]top [D]evices [Q]uit")
 
 
-def run_tui() -> None:
-    """Entry point to run the TUI application."""
-    app = EchologTUI()
+def run_tui(recorder: "EchologRecorder | None" = None) -> None:
+    """Entry point to run the TUI application.
+    
+    Args:
+        recorder: Optional EchologRecorder instance to integrate with.
+                  If provided, TUI will sync status from the recorder.
+    """
+    app = EchologTUI(recorder=recorder)
     app.run()
 
 

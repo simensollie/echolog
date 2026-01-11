@@ -886,7 +886,7 @@ def main():
     
     elif args.action == 'tui':
         from echolog_tui import run_tui
-        run_tui()
+        run_tui(recorder=recorder)
 
 
 if __name__ == '__main__':
