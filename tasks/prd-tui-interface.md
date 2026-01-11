@@ -15,14 +15,14 @@ Add an interactive terminal user interface for echolog that provides real-time f
 
 ## User Stories
 
-### US-001: Launch TUI application
+### US-001: Launch TUI application ✅
 **Description:** As a user, I want to launch the TUI with a simple command so I can access all features from one interface.
 
 **Acceptance Criteria:**
-- [ ] `echolog tui` command launches the TUI application
-- [ ] TUI displays main dashboard on startup
-- [ ] Application exits cleanly with `q` key
-- [ ] Typecheck passes
+- [x] `echolog tui` command launches the TUI application
+- [x] TUI displays main dashboard on startup
+- [x] Application exits cleanly with `q` key
+- [x] Typecheck passes
 
 ### US-002: Display recording status
 **Description:** As a user, I want to see the current recording status so I know whether a session is active.

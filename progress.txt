@@ -1,0 +1,26 @@
+## Codebase Patterns
+- Use Textual framework for TUI (>=0.50.0) - imports from `textual.app`, `textual.containers`, `textual.widgets`
+- TUI is separate module `echolog_tui.py`, imported lazily in `echolog.py` when `tui` action is used
+- EchologRecorder class in `echolog.py` is the core recording engine - TUI should interact with this
+- Tests run via `pytest` in the virtual environment
+- Activate venv with `source .venv/bin/activate` before running commands
+
+---
+
+## 2026-01-11 - US-001
+Thread: https://ampcode.com/threads/T-019bacfb-822c-775e-81d5-13ed4be60bee
+- Implemented: Basic TUI application with Textual framework
+- Files changed:
+  - echolog_tui.py (new) - TUI module with Dashboard, StatusPanel, TimerPanel, ChunkPanel, InfoPanel, LogPanel
+  - echolog.py (modified) - Added import and call to run_tui() for `tui` action
+- Acceptance criteria met:
+  - `echolog tui` launches the TUI application
+  - TUI displays main dashboard on startup
+  - Application exits cleanly with `q` key
+  - Typecheck passes (Python imports work)
+- **Learnings for future iterations:**
+  - Textual uses CSS-like styling via DEFAULT_CSS class attributes
+  - Bindings are defined via BINDINGS class attribute with Binding objects
+  - Use compose() method to build widget tree, on_mount() for initialization
+  - query_one() to find widgets by ID/class, update() to refresh labels
+---
