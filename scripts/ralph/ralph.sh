@@ -59,8 +59,13 @@ for i in $(seq 1 $MAX_ITERATIONS); do
   echo "  Ralph Iteration $i of $MAX_ITERATIONS"
   echo "═══════════════════════════════════════════════════════"
   
-  # Run amp with the ralph prompt
-  OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | claude --dangerously-skip-permissions 2>&1 | tee /dev/stderr) || true
+  # amp --dangerously-allow-all
+  # claude --dangerously-skip-permissions --model claude-opus-4-5-20251101
+  # claude --dangerously-skip-permissions --model claude-sonnet-4-5-20250929
+  amp=(amp --dangerously-allow-all)
+  claude=(claude --dangerously-skip-permissions --model claude-opus-4-5-20251101)
+  # Run model with the ralph prompt
+  OUTPUT=$(cat "$SCRIPT_DIR/prompt.md" | "${claude[@]}" 2>&1 | tee /dev/stderr) || true
   
   # Check for completion signal
   if echo "$OUTPUT" | grep -q "<promise>COMPLETE</promise>"; then
