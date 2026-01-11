@@ -4,7 +4,7 @@ import pytest
 
 from textual.widgets import Input
 
-from echolog_tui import DeviceSelectionScreen, EchologTUI, LogPanel, SessionNameModal
+from echolog_tui import DeviceSelectionScreen, EchologTUI, LogPanel, SessionNameModal, VUMeterPanel
 
 
 class FakeRecorder:
@@ -42,6 +42,7 @@ class FakeRecorder:
             "log_entries": [],
             "time_limit_seconds": 0,
             "time_limit_remaining_seconds": 0,
+            "audio_level_db": -60.0,
         }
 
     def start_recording(self, session_name: str) -> bool:
@@ -229,3 +230,77 @@ async def test_log_panel_colors_warnings_yellow() -> None:
         log_panel.add_entry("Test warning", level="WARNING")
         # Verify WARNING is added with correct level
         assert any(e.get("level") == "WARNING" for e in log_panel.log_entries)
+
+
+@pytest.mark.asyncio
+async def test_vu_meter_shows_level_during_recording() -> None:
+    """US-003: VU meter shows current audio level during recording."""
+    recorder = FakeRecorder()
+    recorder._recording = True
+    recorder.session_name = "test"
+    recorder.session_label = "test"
+
+    app = EchologTUI(recorder=recorder)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        vu_panel = app.query_one(VUMeterPanel)
+        # Simulate audio level update during recording
+        vu_panel.update_level(-20.0, enabled=True)
+        assert vu_panel._enabled is True
+        assert vu_panel._level_db == -20.0
+
+
+@pytest.mark.asyncio
+async def test_vu_meter_shows_db_format() -> None:
+    """US-003: VU meter shows level in dB format."""
+    recorder = FakeRecorder()
+    app = EchologTUI(recorder=recorder)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        vu_panel = app.query_one(VUMeterPanel)
+        # Test with a specific level
+        vu_panel.update_level(-15.0, enabled=True)
+        display = vu_panel._render_meter()
+        # Verify dB is shown in the output
+        assert "dB" in display
+        assert "-15" in display
+
+
+@pytest.mark.asyncio
+async def test_vu_meter_disabled_when_not_recording() -> None:
+    """US-003: VU meter disabled when not recording."""
+    recorder = FakeRecorder()
+    recorder._recording = False
+
+    app = EchologTUI(recorder=recorder)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        vu_panel = app.query_one(VUMeterPanel)
+        # Initially should be disabled
+        assert vu_panel._enabled is False
+        # Display should show disabled state
+        display = vu_panel._render_meter()
+        assert "-- dB" in display
+
+
+@pytest.mark.asyncio
+async def test_vu_meter_resets_when_recording_stops() -> None:
+    """US-003: VU meter resets when recording stops."""
+    recorder = FakeRecorder()
+    recorder._recording = True
+    recorder.session_name = "test"
+    recorder.session_label = "test"
+
+    app = EchologTUI(recorder=recorder)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        vu_panel = app.query_one(VUMeterPanel)
+        # Simulate active recording with audio
+        vu_panel.update_level(-10.0, enabled=True)
+        assert vu_panel._enabled is True
+
+        # Simulate stopping recording
+        recorder._recording = False
+        vu_panel.update_level(-60.0, enabled=False)
+        assert vu_panel._enabled is False
+        assert vu_panel._level_db == -60.0

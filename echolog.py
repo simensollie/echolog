@@ -18,6 +18,8 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 import threading
 import re
+import struct
+import math
 
 
 class EchologRecorder:
@@ -29,6 +31,10 @@ class EchologRecorder:
         self.ffmpeg_process = None
         self.recording = False
         self.session_id = None
+        # Base user-provided session name (folder name). May include underscores.
+        self.session_name: Optional[str] = None
+        # User-facing label for display in TUI; does not affect on-disk paths once recording starts.
+        self.session_label: Optional[str] = None
         self.session_logger: Optional[logging.Logger] = None
         self._stderr_thread: Optional[threading.Thread] = None
         self._chunk_thread: Optional[threading.Thread] = None
@@ -40,7 +46,95 @@ class EchologRecorder:
         self._limit_boundary: str = "immediate"
         self._limit_thread: Optional[threading.Thread] = None
         self._segment_duration_seconds: int = 0
-        
+        # Audio level monitoring
+        self._audio_level_db: float = -60.0  # Current audio level in dB
+        self._audio_monitor_thread: Optional[threading.Thread] = None
+        self._audio_monitor_stop: bool = False
+
+    def set_session_label(self, label: str) -> None:
+        """Set a user-facing session label for display in the TUI.
+
+        This does not rename files or directories on disk.
+        """
+        self.session_label = label.strip() if label is not None else None
+        if self.session_logger and self.session_label:
+            try:
+                self.session_logger.info(f"session label updated label={self.session_label}")
+            except Exception:
+                pass
+
+    def get_audio_level_db(self) -> float:
+        """Get the current audio level in dB.
+
+        Returns:
+            Audio level in dB (typically -60 to 0, where 0 is full scale).
+            Returns -60.0 if not recording or unable to get level.
+        """
+        return self._audio_level_db
+
+    def _start_audio_monitor(self, device: str) -> None:
+        """Start background thread to monitor audio levels.
+
+        Uses parec to capture raw audio data and compute peak levels.
+        """
+        self._audio_monitor_stop = False
+
+        def _monitor_loop() -> None:
+            try:
+                # Use parec to capture raw audio for level monitoring
+                # We capture at low sample rate (8000 Hz) mono for minimal overhead
+                cmd = [
+                    'parec',
+                    '--device', device,
+                    '--format=s16le',
+                    '--rate=8000',
+                    '--channels=1',
+                    '--latency-msec=100',
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                )
+
+                # Read audio data in small chunks and compute peak level
+                chunk_size = 800  # 100ms at 8000Hz mono (16-bit = 2 bytes per sample)
+                assert proc.stdout is not None
+                while not self._audio_monitor_stop and self.recording:
+                    data = proc.stdout.read(chunk_size * 2)  # 2 bytes per sample
+                    if not data:
+                        break
+                    # Unpack as signed 16-bit little-endian
+                    samples = struct.unpack(f'<{len(data)//2}h', data)
+                    if samples:
+                        # Find peak amplitude
+                        peak = max(abs(s) for s in samples)
+                        # Convert to dB (full scale = 32767)
+                        if peak > 0:
+                            db = 20 * math.log10(peak / 32767.0)
+                        else:
+                            db = -60.0
+                        self._audio_level_db = max(-60.0, min(0.0, db))
+
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+            except Exception:
+                pass
+            finally:
+                self._audio_level_db = -60.0
+
+        self._audio_monitor_thread = threading.Thread(target=_monitor_loop, daemon=True)
+        self._audio_monitor_thread.start()
+
+    def _stop_audio_monitor(self) -> None:
+        """Stop the audio level monitoring thread."""
+        self._audio_monitor_stop = True
+        self._audio_level_db = -60.0
+        # Thread will exit on its own due to the stop flag
+
     def _load_config(self) -> configparser.ConfigParser:
         """Load configuration from file or create default."""
         config = configparser.ConfigParser()
@@ -401,6 +495,8 @@ class EchologRecorder:
             return False
         
         # Generate session ID
+        self.session_name = session_id
+        self.session_label = session_id
         self.session_id = f"{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         # Set up output directory
@@ -557,6 +653,13 @@ class EchologRecorder:
             except Exception as _lt_err:
                 if self.session_logger:
                     self.session_logger.warning(f"limit timer error err={_lt_err}")
+
+            # Start audio level monitor for VU meter
+            try:
+                self._start_audio_monitor(device)
+            except Exception as _am_err:
+                if self.session_logger:
+                    self.session_logger.warning(f"audio monitor error err={_am_err}")
             return True
             
         except FileNotFoundError:
@@ -669,8 +772,9 @@ class EchologRecorder:
             
             self.recording = False
             self.ffmpeg_process = None
+            self._stop_audio_monitor()
             print("Recording stopped successfully!")
-            
+
             # Check if we need to fix the last segment
             self._fix_last_segment_metadata()
             # Log stop summary
@@ -678,9 +782,9 @@ class EchologRecorder:
                 if self.session_logger:
                     # Finalize the last chunk size if not already
                     try:
-                        output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
-                        session_dir = Path(output_dir) / self.session_id.split('_')[0]
-                        all_chunks = sorted(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.{self.config.get('recording', 'format', fallback='ogg')}"))
+                        if self._session_dir is not None and self.session_id:
+                            fmt = self.config.get('recording', 'format', fallback='ogg')
+                            all_chunks = sorted(self._session_dir.glob(f"{self.session_id}_chunk_*.{fmt}"))
                         if all_chunks:
                             last = all_chunks[-1].name
                             if last not in self._finalized_chunks:
@@ -690,9 +794,10 @@ class EchologRecorder:
                     except Exception:
                         pass
                     # Count chunks for this session
-                    output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
-                    session_dir = Path(output_dir) / self.session_id.split('_')[0]
-                    files = list(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.{self.config.get('recording', 'format', fallback='ogg')}"))
+                    files = []
+                    if self._session_dir is not None and self.session_id:
+                        fmt = self.config.get('recording', 'format', fallback='ogg')
+                        files = list(self._session_dir.glob(f"{self.session_id}_chunk_*.{fmt}"))
                     count = len(files)
                     duration_s = 0.0
                     if self._recording_start_monotonic is not None:
@@ -708,12 +813,14 @@ class EchologRecorder:
             os.killpg(os.getpgid(self.ffmpeg_process.pid), signal.SIGKILL)
             self.ffmpeg_process = None
             self.recording = False
+            self._stop_audio_monitor()
             print("Recording force-stopped.")
             try:
                 if self.session_logger:
-                    output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
-                    session_dir = Path(output_dir) / self.session_id.split('_')[0]
-                    files = list(session_dir.glob(f"{self.session_id.split('_')[0]}_*_chunk_*.flac"))
+                    files = []
+                    if self._session_dir is not None and self.session_id:
+                        fmt = self.config.get('recording', 'format', fallback='ogg')
+                        files = list(self._session_dir.glob(f"{self.session_id}_chunk_*.{fmt}"))
                     count = len(files)
                     duration_s = 0.0
                     if self._recording_start_monotonic is not None:
@@ -784,8 +891,7 @@ class EchologRecorder:
         if self._session_dir is not None and self.session_id:
             try:
                 fmt = self.config.get('recording', 'format', fallback='ogg')
-                session_name = self.session_id.split('_')[0]
-                pattern = f"{session_name}_*_chunk_*.{fmt}"
+                pattern = f"{self.session_id}_chunk_*.{fmt}"
                 chunk_files = sorted(self._session_dir.glob(pattern))
                 for chunk_file in chunk_files:
                     name = chunk_file.name
@@ -820,6 +926,8 @@ class EchologRecorder:
         return {
             'recording': self.is_recording(),
             'session_id': self.session_id,
+            'session_name': self.session_name,
+            'session_label': self.session_label or self.session_name,
             'process_id': self.ffmpeg_process.pid if self.ffmpeg_process else None,
             'log_path': log_path,
             'elapsed_seconds': elapsed_seconds,
@@ -835,23 +943,17 @@ class EchologRecorder:
             'log_entries': self.get_recent_log_entries(),
             'time_limit_seconds': time_limit_seconds,
             'time_limit_remaining_seconds': time_limit_remaining_seconds,
+            'audio_level_db': self._audio_level_db,
         }
     
     def check_recording_files(self) -> List[str]:
         """Check what recording files have been created."""
-        if not self.session_id:
-            return []
-        
-        # Get the output directory from config
-        output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
-        session_dir = Path(output_dir) / self.session_id.split('_')[0]  # Get session name without timestamp
-        
-        if not session_dir.exists():
+        if not self.session_id or self._session_dir is None:
             return []
         
         # Find all files matching the session pattern
-        pattern = f"{self.session_id.split('_')[0]}_*_chunk_*.{self.config.get('recording', 'format', fallback='ogg')}"
-        files = list(session_dir.glob(pattern))
+        pattern = f"{self.session_id}_chunk_*.{self.config.get('recording', 'format', fallback='ogg')}"
+        files = list(self._session_dir.glob(pattern))
         return sorted([f.name for f in files])
     
     def _fix_last_segment_metadata(self):
@@ -860,16 +962,13 @@ class EchologRecorder:
             return
         
         try:
-            # Get the output directory
-            output_dir = os.path.expanduser(self.config.get('recording', 'output_dir'))
-            session_dir = Path(output_dir) / self.session_id.split('_')[0]
-            
-            if not session_dir.exists():
+            if self._session_dir is None or not self._session_dir.exists():
                 return
             
             # Find all chunk files
-            pattern = f"{self.session_id.split('_')[0]}_*_chunk_*.flac"
-            files = sorted(session_dir.glob(pattern))
+            fmt = self.config.get('recording', 'format', fallback='ogg')
+            pattern = f"{self.session_id}_chunk_*.{fmt}"
+            files = sorted(self._session_dir.glob(pattern))
             
             if len(files) < 2:
                 return  # Need at least 2 files to compare

@@ -581,6 +581,111 @@ class InfoPanel(Static):
             label.remove_class("disk-warning")
 
 
+class VUMeterPanel(Static):
+    """Display audio level meter (VU meter) during recording."""
+
+    DEFAULT_CSS = """
+    VUMeterPanel {
+        border: solid $primary;
+        padding: 0 1;
+        height: 3;
+    }
+
+    VUMeterPanel .vu-disabled {
+        color: $text-muted;
+    }
+
+    VUMeterPanel .vu-low {
+        color: #00ff00;
+    }
+
+    VUMeterPanel .vu-medium {
+        color: #ffff00;
+    }
+
+    VUMeterPanel .vu-high {
+        color: #ff6600;
+    }
+
+    VUMeterPanel .vu-peak {
+        color: #ff0000;
+        text-style: bold;
+    }
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._level_db: float = -60.0
+        self._enabled: bool = False
+
+    def compose(self) -> ComposeResult:
+        yield Label(self._render_meter(), id="vu-label")
+
+    def _render_meter(self) -> str:
+        """Render the VU meter bar with dB value."""
+        if not self._enabled:
+            return "VU: [────────────────────] -- dB"
+
+        # Map dB to bar position: -60 dB = 0%, 0 dB = 100%
+        # Use 20 characters for the bar
+        bar_width = 20
+        normalized = (self._level_db + 60.0) / 60.0  # 0.0 to 1.0
+        normalized = max(0.0, min(1.0, normalized))
+        filled = int(normalized * bar_width)
+
+        # Build the bar with color zones
+        # Green: -60 to -20 dB, Yellow: -20 to -10 dB, Orange: -10 to -3 dB, Red: -3 to 0 dB
+        bar_chars = []
+        for i in range(bar_width):
+            if i < filled:
+                pos_db = -60.0 + (i / bar_width) * 60.0
+                if pos_db < -20:
+                    bar_chars.append("█")  # Green zone
+                elif pos_db < -10:
+                    bar_chars.append("█")  # Yellow zone
+                elif pos_db < -3:
+                    bar_chars.append("█")  # Orange zone
+                else:
+                    bar_chars.append("█")  # Red zone (peak)
+            else:
+                bar_chars.append("─")
+
+        bar = "".join(bar_chars)
+
+        # Format dB value
+        if self._level_db <= -60.0:
+            db_str = "-∞ dB"
+        else:
+            db_str = f"{self._level_db:.0f} dB"
+
+        return f"VU: [{bar}] {db_str}"
+
+    def update_level(self, level_db: float, enabled: bool = True) -> None:
+        """Update the VU meter display.
+
+        Args:
+            level_db: Audio level in dB (-60 to 0).
+            enabled: Whether the meter is active (recording in progress).
+        """
+        self._level_db = level_db
+        self._enabled = enabled
+        label = self.query_one("#vu-label", Label)
+        label.update(self._render_meter())
+
+        # Update CSS class for coloring based on level
+        label.remove_class("vu-disabled", "vu-low", "vu-medium", "vu-high", "vu-peak")
+        if not enabled:
+            label.add_class("vu-disabled")
+        elif self._level_db >= -3:
+            label.add_class("vu-peak")
+        elif self._level_db >= -10:
+            label.add_class("vu-high")
+        elif self._level_db >= -20:
+            label.add_class("vu-medium")
+        else:
+            label.add_class("vu-low")
+
+
 class LogPanel(Static):
     """Display session log entries with color-coded levels."""
     
@@ -726,16 +831,24 @@ class Dashboard(Container):
     #log-row {
         height: auto;
     }
+
+    #vu-row {
+        height: 3;
+        margin-bottom: 1;
+    }
     """
-    
+
     def compose(self) -> ComposeResult:
         with Container(id="status-row"):
             yield StatusPanel()
-        
+
         with Horizontal(id="timer-row"):
             yield TimerPanel()
             yield SegmentPanel()
-        
+
+        with Container(id="vu-row"):
+            yield VUMeterPanel()
+
         with Horizontal(id="main-row"):
             with Vertical(id="chunks-col"):
                 yield Static("─ Chunks ─", classes="panel-title")
@@ -842,7 +955,10 @@ class EchologTUI(App):
                 # Clear chunk list when recording stops
                 chunk_panel = self.query_one(ChunkPanel)
                 chunk_panel.update_chunks([])
-    
+                # Reset VU meter when recording stops
+                vu_panel = self.query_one(VUMeterPanel)
+                vu_panel.update_level(-60.0, enabled=False)
+
     def _sync_info_panel(self, status: dict | None = None) -> None:
         """Sync the info panel with recorder config.
 
@@ -939,7 +1055,24 @@ class EchologTUI(App):
         
         # Update session log entries
         self._sync_log_panel(status)
-    
+
+        # Update VU meter
+        self._sync_vu_meter(status)
+
+    def _sync_vu_meter(self, status: dict | None = None) -> None:
+        """Sync the VU meter panel with audio level from recorder."""
+        if self.recorder is None:
+            return
+
+        if status is None:
+            status = self.recorder.get_status()
+
+        is_recording = status.get("recording", False)
+        audio_level_db = status.get("audio_level_db", -60.0)
+
+        vu_panel = self.query_one(VUMeterPanel)
+        vu_panel.update_level(audio_level_db, enabled=is_recording)
+
     def _sync_log_panel(self, status: dict | None = None) -> None:
         """Sync the log panel with session log entries from recorder."""
         if self.recorder is None:
