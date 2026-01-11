@@ -76,9 +76,131 @@ class HelpModal(ModalScreen[None]):
         self.dismiss(None)
 
 
+class DeviceSelectionScreen(ModalScreen[str]):
+    """Screen for selecting an audio device from a list."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("up", "move_up", "Up"),
+        Binding("down", "move_down", "Down"),
+        Binding("enter", "select_device", "Select"),
+    ]
+
+    DEFAULT_CSS = """
+    DeviceSelectionScreen {
+        align: center middle;
+    }
+
+    DeviceSelectionScreen > Container {
+        width: 70;
+        height: auto;
+        max-height: 80%;
+        background: $surface;
+        border: solid $primary;
+        padding: 1 2;
+    }
+
+    DeviceSelectionScreen > Container > Label#device-title {
+        text-style: bold;
+        text-align: center;
+        margin-bottom: 1;
+    }
+
+    DeviceSelectionScreen > Container > Container#device-list {
+        height: auto;
+        max-height: 15;
+        overflow-y: auto;
+    }
+
+    DeviceSelectionScreen > Container > Container#device-list > Label {
+        width: 100%;
+        height: 1;
+        padding: 0 1;
+    }
+
+    DeviceSelectionScreen > Container > Container#device-list > Label.device-selected {
+        background: $primary;
+        color: $text;
+        text-style: bold;
+    }
+
+    DeviceSelectionScreen > Container > Container#device-list > Label.device-current {
+        color: #00ff00;
+    }
+
+    DeviceSelectionScreen > Container > Static#device-footer {
+        margin-top: 1;
+        color: $text-muted;
+        text-align: center;
+    }
+    """
+
+    def __init__(self, devices: list[dict], current_device: str = "") -> None:
+        super().__init__()
+        self._devices = devices
+        self._current_device = current_device
+        self._selected_index = 0
+        # Try to select current device initially
+        for i, dev in enumerate(devices):
+            if dev.get('name') == current_device:
+                self._selected_index = i
+                break
+
+    def compose(self) -> ComposeResult:
+        with Container():
+            yield Label("Select Audio Device", id="device-title")
+            with Container(id="device-list"):
+                for i, device in enumerate(self._devices):
+                    name = device.get('name', 'Unknown')
+                    status = device.get('status', '')
+                    status_str = f" [{status}]" if status else ""
+                    is_current = name == self._current_device
+                    marker = "● " if is_current else "  "
+                    label = Label(f"{marker}{name}{status_str}", id=f"device-{i}")
+                    if is_current:
+                        label.add_class("device-current")
+                    if i == self._selected_index:
+                        label.add_class("device-selected")
+                    yield label
+            yield Static("↑/↓ Navigate  Enter: Select  Esc: Cancel", id="device-footer")
+
+    def _update_selection(self) -> None:
+        """Update visual selection."""
+        for i in range(len(self._devices)):
+            label = self.query_one(f"#device-{i}", Label)
+            if i == self._selected_index:
+                label.add_class("device-selected")
+            else:
+                label.remove_class("device-selected")
+
+    def action_move_up(self) -> None:
+        """Move selection up."""
+        if self._selected_index > 0:
+            self._selected_index -= 1
+            self._update_selection()
+
+    def action_move_down(self) -> None:
+        """Move selection down."""
+        if self._selected_index < len(self._devices) - 1:
+            self._selected_index += 1
+            self._update_selection()
+
+    def action_select_device(self) -> None:
+        """Select the currently highlighted device."""
+        if self._devices:
+            device = self._devices[self._selected_index]
+            self.dismiss(device.get('name', ''))
+        else:
+            self.dismiss('')
+
+    def action_cancel(self) -> None:
+        """Cancel device selection."""
+        self.dismiss('')
+
+
 class SessionNameModal(ModalScreen[str]):
     """Modal dialog to prompt for session name before recording."""
-    
+
     BINDINGS = [
         Binding("escape", "cancel", "Cancel"),
     ]
@@ -803,9 +925,50 @@ class EchologTUI(App):
             log_panel.add_entry(f"ERROR: {e}")
     
     def action_select_device(self) -> None:
-        """Open device selection (placeholder)."""
+        """Open device selection screen."""
         log_panel = self.query_one(LogPanel)
-        log_panel.add_entry("Device selection requested (not yet implemented)")
+
+        if self.recorder is None:
+            log_panel.add_entry("ERROR: No recorder available")
+            return
+
+        # Get available devices
+        devices = self.recorder.detect_audio_devices()
+        if not devices:
+            log_panel.add_entry("No audio devices found")
+            return
+
+        # Get current configured device
+        current_device = self.recorder.config.get('audio', 'device_name', fallback='')
+
+        # Show device selection screen
+        self.push_screen(
+            DeviceSelectionScreen(devices, current_device),
+            self._on_device_selected
+        )
+
+    def _on_device_selected(self, device_name: str) -> None:
+        """Callback when a device is selected from the device selection screen."""
+        log_panel = self.query_one(LogPanel)
+
+        if not device_name:
+            log_panel.add_entry("Device selection cancelled")
+            return
+
+        if self.recorder is None:
+            log_panel.add_entry("ERROR: No recorder available")
+            return
+
+        # Update the recorder config with the selected device
+        if not self.recorder.config.has_section('audio'):
+            self.recorder.config.add_section('audio')
+        self.recorder.config.set('audio', 'device_name', device_name)
+        self.recorder.config.set('audio', 'auto_detect_device', 'false')
+
+        log_panel.add_entry(f"Device set: {device_name}")
+
+        # Update info panel to show the new device
+        self._sync_info_panel()
     
     def action_show_help(self) -> None:
         """Show help overlay with keyboard shortcuts."""
