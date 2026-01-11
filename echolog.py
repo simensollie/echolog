@@ -1018,7 +1018,9 @@ def main():
                         help='Max size in bytes before rotating session.log')
     parser.add_argument('--log-backup-count', type=int,
                         help='Number of rotated session.log files to keep')
-    
+    parser.add_argument('--no-meter', action='store_true',
+                        help='Disable VU meter in TUI to reduce CPU usage')
+
     args = parser.parse_args()
     
     # Create recorder instance
@@ -1123,7 +1125,7 @@ def main():
     
     elif args.action == 'tui':
         from echolog_tui import run_tui
-        run_tui(recorder=recorder)
+        run_tui(recorder=recorder, no_meter=args.no_meter)
 
 
 if __name__ == '__main__':

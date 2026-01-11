@@ -304,3 +304,52 @@ async def test_vu_meter_resets_when_recording_stops() -> None:
         vu_panel.update_level(-60.0, enabled=False)
         assert vu_panel._enabled is False
         assert vu_panel._level_db == -60.0
+
+
+@pytest.mark.asyncio
+async def test_no_meter_flag_hides_vu_meter_panel() -> None:
+    """US-004: --no-meter flag hides VU meter panel in TUI."""
+    recorder = FakeRecorder()
+    app = EchologTUI(recorder=recorder, no_meter=True)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # VU meter panel should not exist when no_meter=True
+        vu_panels = app.query(VUMeterPanel)
+        assert len(vu_panels) == 0
+
+
+@pytest.mark.asyncio
+async def test_tui_works_without_meter() -> None:
+    """US-004: TUI works normally with no_meter=True."""
+    recorder = FakeRecorder()
+    app = EchologTUI(recorder=recorder, no_meter=True)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Can still start and stop recording
+        await pilot.press("r")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionNameModal)
+
+        inp = app.screen.query_one("#session-name-input", Input)
+        inp.value = "test_session"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert recorder.is_recording() is True
+
+        # Stop recording
+        await pilot.press("s")
+        await pilot.pause()
+        assert recorder.is_recording() is False
+
+
+@pytest.mark.asyncio
+async def test_meter_shown_by_default() -> None:
+    """US-004: VU meter is shown by default (no_meter=False)."""
+    recorder = FakeRecorder()
+    app = EchologTUI(recorder=recorder)  # no_meter defaults to False
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # VU meter panel should exist when no_meter=False
+        vu_panels = app.query(VUMeterPanel)
+        assert len(vu_panels) == 1

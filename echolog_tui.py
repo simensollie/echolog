@@ -797,37 +797,37 @@ class LogPanel(Static):
 
 class Dashboard(Container):
     """Main dashboard view with all panels."""
-    
+
     DEFAULT_CSS = """
     Dashboard {
         layout: vertical;
         padding: 1;
     }
-    
+
     #status-row {
         height: 3;
         margin-bottom: 1;
     }
-    
+
     #timer-row {
         height: 5;
         margin-bottom: 1;
     }
-    
+
     #main-row {
         height: auto;
         margin-bottom: 1;
     }
-    
+
     #chunks-col {
         width: 1fr;
         margin-right: 1;
     }
-    
+
     #info-col {
         width: 1fr;
     }
-    
+
     #log-row {
         height: auto;
     }
@@ -838,6 +838,10 @@ class Dashboard(Container):
     }
     """
 
+    def __init__(self, no_meter: bool = False) -> None:
+        super().__init__()
+        self._no_meter = no_meter
+
     def compose(self) -> ComposeResult:
         with Container(id="status-row"):
             yield StatusPanel()
@@ -846,8 +850,9 @@ class Dashboard(Container):
             yield TimerPanel()
             yield SegmentPanel()
 
-        with Container(id="vu-row"):
-            yield VUMeterPanel()
+        if not self._no_meter:
+            with Container(id="vu-row"):
+                yield VUMeterPanel()
 
         with Horizontal(id="main-row"):
             with Vertical(id="chunks-col"):
@@ -856,7 +861,7 @@ class Dashboard(Container):
             with Vertical(id="info-col"):
                 yield Static("─ Info ─", classes="panel-title")
                 yield InfoPanel()
-        
+
         with Container(id="log-row"):
             yield Static("─ Log ─", classes="panel-title")
             yield LogPanel()
@@ -902,14 +907,15 @@ class EchologTUI(App):
         Binding("Q", "quit", None, priority=True),
     ]
     
-    def __init__(self, recorder: "EchologRecorder | None" = None) -> None:
+    def __init__(self, recorder: "EchologRecorder | None" = None, no_meter: bool = False) -> None:
         super().__init__()
         self.recorder = recorder
         self._last_status: bool | None = None
+        self._no_meter = no_meter
     
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Dashboard()
+        yield Dashboard(no_meter=self._no_meter)
         yield Footer()
     
     def on_mount(self) -> None:
@@ -955,9 +961,10 @@ class EchologTUI(App):
                 # Clear chunk list when recording stops
                 chunk_panel = self.query_one(ChunkPanel)
                 chunk_panel.update_chunks([])
-                # Reset VU meter when recording stops
-                vu_panel = self.query_one(VUMeterPanel)
-                vu_panel.update_level(-60.0, enabled=False)
+                # Reset VU meter when recording stops (if meter is enabled)
+                if not self._no_meter:
+                    vu_panel = self.query_one(VUMeterPanel)
+                    vu_panel.update_level(-60.0, enabled=False)
 
     def _sync_info_panel(self, status: dict | None = None) -> None:
         """Sync the info panel with recorder config.
@@ -1061,6 +1068,9 @@ class EchologTUI(App):
 
     def _sync_vu_meter(self, status: dict | None = None) -> None:
         """Sync the VU meter panel with audio level from recorder."""
+        if self._no_meter:
+            return
+
         if self.recorder is None:
             return
 
@@ -1297,14 +1307,15 @@ class EchologTUI(App):
         self.push_screen(HelpModal())
 
 
-def run_tui(recorder: "EchologRecorder | None" = None) -> None:
+def run_tui(recorder: "EchologRecorder | None" = None, no_meter: bool = False) -> None:
     """Entry point to run the TUI application.
-    
+
     Args:
         recorder: Optional EchologRecorder instance to integrate with.
                   If provided, TUI will sync status from the recorder.
+        no_meter: If True, hide the VU meter panel to reduce CPU usage.
     """
-    app = EchologTUI(recorder=recorder)
+    app = EchologTUI(recorder=recorder, no_meter=no_meter)
     app.run()
 
 
