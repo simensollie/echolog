@@ -757,7 +757,7 @@ class EchologRecorder:
 def main():
     """Main entry point for the application."""
     parser = argparse.ArgumentParser(description='Echolog - Audio Recording Application')
-    parser.add_argument('action', choices=['start', 'stop', 'status', 'devices', 'files'], 
+    parser.add_argument('action', choices=['start', 'stop', 'status', 'devices', 'files', 'tui'], 
                        help='Action to perform')
     parser.add_argument('--session-id', '-s', help='Session identifier for recording')
     parser.add_argument('--output-dir', '-o', help='Output directory for recordings')
@@ -883,6 +883,9 @@ def main():
                         print(f"  - {file.name} ({size_mb:.1f} MB)")
                 else:
                     print(f"  No {ext.upper()} files found")
+    
+    elif args.action == 'tui':
+        print("TUI mode placeholder - Textual UI coming soon!")
 
 
 if __name__ == '__main__':

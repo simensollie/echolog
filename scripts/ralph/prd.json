@@ -1,0 +1,257 @@
+{
+  "project": "Echolog",
+  "branchName": "ralph/tui-interface",
+  "description": "Terminal User Interface (TUI) - Interactive terminal dashboard for managing recording sessions with real-time feedback",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add textual dependency and tui CLI action",
+      "description": "As a developer, I need the TUI framework installed and CLI entry point so the TUI can be launched.",
+      "acceptanceCriteria": [
+        "Add textual>=0.50.0 to requirements.txt",
+        "Add 'tui' action to argparse choices in echolog.py",
+        "Running 'python echolog.py tui' prints placeholder message and exits",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create basic TUI app shell with Textual",
+      "description": "As a developer, I need a basic Textual app structure so I can build the dashboard.",
+      "acceptanceCriteria": [
+        "Create echolog_tui.py with EchologApp class extending textual.app.App",
+        "App displays title 'ECHOLOG' in header",
+        "App has footer with '[Q]uit' hint",
+        "Pressing 'q' exits the application cleanly",
+        "echolog.py tui action launches the TUI app",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add status panel showing idle/recording state",
+      "description": "As a user, I want to see the current recording status so I know whether a session is active.",
+      "acceptanceCriteria": [
+        "Dashboard shows 'Status: Idle' when not recording",
+        "Status text updates to 'Status: ● RECORDING' when recording active",
+        "Session ID displayed next to status when recording",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add elapsed time display",
+      "description": "As a user, I want to see elapsed recording time so I know how long I've been recording.",
+      "acceptanceCriteria": [
+        "Time panel displays HH:MM:SS format",
+        "Shows 00:00:00 when idle",
+        "Timer updates every second during recording",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add info panel with device and settings",
+      "description": "As a user, I want to see current device and settings so I know the recording configuration.",
+      "acceptanceCriteria": [
+        "Info panel shows current audio device name",
+        "Shows audio format (OGG/Opus, FLAC, etc.)",
+        "Shows sample rate",
+        "Shows segment duration setting",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Add disk space indicator",
+      "description": "As a user, I want to see available disk space so I don't run out mid-session.",
+      "acceptanceCriteria": [
+        "Info panel shows free space in output directory",
+        "Format: 'Disk: XX.X GB free'",
+        "Updates when recording starts",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add chunk list panel",
+      "description": "As a user, I want to see created chunks so I can track recording output.",
+      "acceptanceCriteria": [
+        "Chunks panel lists all chunks in current session",
+        "Each chunk shows filename and size in MB",
+        "Completed chunks marked with checkmark",
+        "Current in-progress chunk shows '(rec...)'",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add segment progress bar",
+      "description": "As a user, I want to see progress toward the next chunk so I know when segments are created.",
+      "acceptanceCriteria": [
+        "Progress bar shows elapsed time in current segment",
+        "Displays current chunk number",
+        "Shows time remaining until next chunk (MM:SS)",
+        "Progress resets when new chunk starts",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Integrate EchologRecorder with TUI",
+      "description": "As a developer, I need the TUI to use the EchologRecorder class so recording actually works.",
+      "acceptanceCriteria": [
+        "TUI instantiates EchologRecorder on startup",
+        "TUI reads config from echolog.conf",
+        "Recorder state is accessible to update UI panels",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Start recording via keyboard shortcut",
+      "description": "As a user, I want to start recording with a keypress so I can quickly begin sessions.",
+      "acceptanceCriteria": [
+        "Pressing 'r' opens input dialog for session name",
+        "After entering name and pressing Enter, recording starts",
+        "Status updates to 'Recording' immediately",
+        "Error notification shown if recording fails to start",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Stop recording via keyboard shortcut",
+      "description": "As a user, I want to stop recording with a keypress so I can end sessions quickly.",
+      "acceptanceCriteria": [
+        "Pressing 's' stops active recording",
+        "Status updates to 'Idle'",
+        "Final chunk is properly finalized",
+        "Notification shows recording stopped",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add log panel with real-time entries",
+      "description": "As a user, I want to see recent log entries so I can spot issues immediately.",
+      "acceptanceCriteria": [
+        "Log panel shows last 5 log entries",
+        "New entries appear in real-time during recording",
+        "Errors displayed in red text",
+        "Warnings displayed in yellow text",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Add help overlay",
+      "description": "As a user, I want to see available keyboard shortcuts so I can learn the interface.",
+      "acceptanceCriteria": [
+        "Pressing '?' shows modal overlay with shortcuts list",
+        "Lists all keybindings: r, s, d, q, ?",
+        "Any key or Esc dismisses overlay",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Add device selection screen",
+      "description": "As a user, I want to select an audio device from a list so I don't have to look up device names.",
+      "acceptanceCriteria": [
+        "Pressing 'd' opens device selection screen",
+        "Lists all available audio sources from detect_audio_devices()",
+        "Current device highlighted",
+        "Arrow keys navigate list, Enter selects",
+        "Esc returns to dashboard without changing",
+        "Selected device used for next recording",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add time limit indicator",
+      "description": "As a user, I want to see remaining time when a limit is set so I know when recording will stop.",
+      "acceptanceCriteria": [
+        "If time_limit configured, info panel shows remaining time",
+        "Format: 'Limit: Xh (Ym left)'",
+        "Indicator hidden when no limit set (time_limit=0)",
+        "Updates during recording",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Handle graceful quit during recording",
+      "description": "As a user, I want the app to stop recording before quitting so I don't lose data.",
+      "acceptanceCriteria": [
+        "Pressing 'q' while recording shows confirmation dialog",
+        "Confirming stops recording then exits",
+        "Canceling returns to dashboard",
+        "Final chunk is finalized before exit",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Add footer with keyboard hints",
+      "description": "As a user, I want to see available actions in a footer so I know what I can do.",
+      "acceptanceCriteria": [
+        "Footer shows: [R]ecord [S]top [D]evices [?]Help [Q]uit",
+        "Footer visible at all times on dashboard",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

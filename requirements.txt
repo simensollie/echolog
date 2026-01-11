@@ -8,6 +8,9 @@ configparser>=5.3.0    # Configuration file handling
 # Optional GUI dependencies
 # tkinter is built-in with Python, no need to install
 
+# TUI dependencies
+textual>=0.50.0        # Terminal User Interface framework
+
 # Audio processing (if needed for post-processing)
 pydub>=0.25.1          # Audio file manipulation
 mutagen>=1.45.0        # Audio metadata handling
