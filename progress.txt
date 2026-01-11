@@ -134,3 +134,19 @@ Thread: https://ampcode.com/threads/T-019bad0a-c7f0-748d-a097-c66f2dbe5bcd
   - Use on_input_submitted() to handle Enter key in Input widgets
   - Force status sync by setting _last_status = None before calling _sync_recorder_status()
 ---
+
+## 2026-01-11 - US-007
+Thread: https://ampcode.com/threads/T-019bad0c-a9fb-700e-a4ae-c213695f6522
+- Implemented: Stop recording via keyboard with 's' key
+- Files changed:
+  - echolog_tui.py (modified) - Replaced placeholder action_stop_recording() with full implementation that calls recorder.stop_recording()
+- Acceptance criteria met:
+  - Pressing 's' stops active recording via recorder.stop_recording()
+  - Confirmation message shown in LogPanel (before and after stop)
+  - Status updates to "Idle" (via _sync_recorder_status with force refresh)
+  - Final chunk is properly finalized (handled by recorder.stop_recording())
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - Pattern for TUI actions: check recorder exists, check state (is_recording), log before action, call recorder method, log result, force sync UI
+  - Same force status sync pattern (_last_status = None) used as in start recording
+---

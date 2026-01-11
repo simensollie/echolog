@@ -590,9 +590,32 @@ class EchologTUI(App):
             log_panel.add_entry(f"ERROR: {e}")
     
     def action_stop_recording(self) -> None:
-        """Stop recording (placeholder)."""
+        """Stop the current recording."""
         log_panel = self.query_one(LogPanel)
-        log_panel.add_entry("Recording stop requested (not yet implemented)")
+        
+        if self.recorder is None:
+            log_panel.add_entry("ERROR: No recorder available")
+            return
+        
+        # Check if recording is active
+        if not self.recorder.is_recording():
+            log_panel.add_entry("No active recording to stop")
+            return
+        
+        session_id = self.recorder.get_status().get("session_id", "unknown")
+        log_panel.add_entry(f"Stopping recording: {session_id}")
+        
+        try:
+            success = self.recorder.stop_recording()
+            if success:
+                log_panel.add_entry(f"Recording stopped: {session_id}")
+                # Force immediate status sync
+                self._last_status = None
+                self._sync_recorder_status()
+            else:
+                log_panel.add_entry("ERROR: Failed to stop recording")
+        except Exception as e:
+            log_panel.add_entry(f"ERROR: {e}")
     
     def action_select_device(self) -> None:
         """Open device selection (placeholder)."""

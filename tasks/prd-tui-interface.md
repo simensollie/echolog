@@ -74,15 +74,15 @@ Add an interactive terminal user interface for echolog that provides real-time f
 - [x] Error shown if recording fails to start
 - [x] Typecheck passes
 
-### US-007: Stop recording via keyboard
+### US-007: Stop recording via keyboard ✅
 **Description:** As a user, I want to stop recording with a keypress so I can end sessions quickly.
 
 **Acceptance Criteria:**
-- [ ] Pressing `s` stops active recording
-- [ ] Confirmation message shown
-- [ ] Status updates to "Idle"
-- [ ] Final chunk is properly finalized
-- [ ] Typecheck passes
+- [x] Pressing `s` stops active recording
+- [x] Confirmation message shown
+- [x] Status updates to "Idle"
+- [x] Final chunk is properly finalized
+- [x] Typecheck passes
 
 ### US-008: Display device info
 **Description:** As a user, I want to see the current audio device so I know what's being recorded.
