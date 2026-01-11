@@ -43,15 +43,15 @@ Add an interactive terminal user interface for echolog that provides real-time f
 - [x] Timer shows 00:00:00 when idle
 - [x] Typecheck passes
 
-### US-004: Display segment progress
+### US-004: Display segment progress ✅
 **Description:** As a user, I want to see progress toward the next chunk so I know when segments are created.
 
 **Acceptance Criteria:**
-- [ ] Progress bar shows time elapsed in current segment
-- [ ] Displays current chunk number
-- [ ] Shows time remaining until next chunk
-- [ ] Progress resets when new chunk starts
-- [ ] Typecheck passes
+- [x] Progress bar shows time elapsed in current segment
+- [x] Displays current chunk number
+- [x] Shows time remaining until next chunk
+- [x] Progress resets when new chunk starts
+- [x] Typecheck passes
 
 ### US-005: Display chunk list
 **Description:** As a user, I want to see a list of created chunks so I can track recording output.

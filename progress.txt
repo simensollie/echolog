@@ -60,3 +60,21 @@ Thread: https://ampcode.com/threads/T-019bad00-968e-73cb-9fd5-9cd645773e28
   - `_recording_start_monotonic` is used to calculate elapsed time (monotonic clock)
   - Use separate polling intervals for different update frequencies (0.5s for status, 1s for timer)
 ---
+
+## 2026-01-11 - US-004
+Thread: https://ampcode.com/threads/T-019bad02-a916-77ce-9399-8c8462d65d59
+- Implemented: Segment progress display with progress bar
+- Files changed:
+  - echolog.py (modified) - Added segment progress fields to `get_status()`: `segment_duration_seconds`, `segment_elapsed_seconds`, `segment_remaining_seconds`, `current_chunk_number`
+  - echolog_tui.py (modified) - Added `SegmentPanel` widget with progress bar, chunk counter, and time remaining display
+- Acceptance criteria met:
+  - Progress bar shows time elapsed in current segment (█ filled, ░ empty)
+  - Displays current chunk number (e.g., "Chunk 3/∞")
+  - Shows time remaining until next chunk in MM:SS format
+  - Progress resets when new chunk starts (via modulo calculation)
+  - Typecheck passes
+- **Learnings for future iterations:**
+  - Segment progress calculated from elapsed_seconds % segment_duration
+  - Use `_segment_duration_seconds` from EchologRecorder for accurate segment length
+  - Progress bar rendering: calculate percentage, fill chars with █ and ░
+---
