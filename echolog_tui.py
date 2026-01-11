@@ -533,9 +533,15 @@ class InfoPanel(Static):
         color: #ff6600;
         text-style: bold;
     }
+
+    InfoPanel .time-warning {
+        color: #ffaa00;
+        text-style: bold;
+    }
     """
-    
+
     LOW_DISK_THRESHOLD_BYTES = 1024 * 1024 * 1024  # 1 GB
+    LOW_TIME_THRESHOLD_SECONDS = 5 * 60  # 5 minutes
 
     def __init__(self) -> None:
         super().__init__()
