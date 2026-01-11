@@ -198,6 +198,64 @@ class DeviceSelectionScreen(ModalScreen[str]):
         self.dismiss('')
 
 
+class QuitConfirmModal(ModalScreen[bool]):
+    """Modal dialog to confirm quit while recording."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("y", "confirm", "Yes"),
+        Binding("n", "cancel", "No"),
+    ]
+
+    DEFAULT_CSS = """
+    QuitConfirmModal {
+        align: center middle;
+    }
+
+    QuitConfirmModal > Container {
+        width: 50;
+        height: auto;
+        background: $surface;
+        border: solid $primary;
+        padding: 1 2;
+    }
+
+    QuitConfirmModal > Container > Label#quit-title {
+        text-style: bold;
+        text-align: center;
+        margin-bottom: 1;
+    }
+
+    QuitConfirmModal > Container > Static#quit-message {
+        text-align: center;
+        margin-bottom: 1;
+    }
+
+    QuitConfirmModal > Container > Static#quit-footer {
+        color: $text-muted;
+        text-align: center;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Container():
+            yield Label("Recording Active", id="quit-title")
+            yield Static(
+                "A recording is in progress.\n"
+                "Do you want to stop recording and quit?",
+                id="quit-message"
+            )
+            yield Static("[Y]es to stop and quit  [N]o to cancel", id="quit-footer")
+
+    def action_confirm(self) -> None:
+        """Confirm quit - stop recording and exit."""
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        """Cancel quit - return to dashboard."""
+        self.dismiss(False)
+
+
 class SessionNameModal(ModalScreen[str]):
     """Modal dialog to prompt for session name before recording."""
 
@@ -894,6 +952,37 @@ class EchologTUI(App):
     
     def action_quit(self) -> None:
         """Quit the application."""
+        # Check if recording is active - show confirmation dialog
+        if self.recorder is not None and self.recorder.is_recording():
+            self.push_screen(QuitConfirmModal(), self._on_quit_confirmed)
+        else:
+            self.exit()
+
+    def _on_quit_confirmed(self, confirmed: bool) -> None:
+        """Callback when quit confirmation dialog is dismissed."""
+        if not confirmed:
+            # User cancelled - return to dashboard
+            log_panel = self.query_one(LogPanel)
+            log_panel.add_entry("Quit cancelled")
+            return
+
+        # User confirmed - stop recording then exit
+        log_panel = self.query_one(LogPanel)
+
+        if self.recorder is not None and self.recorder.is_recording():
+            session_id = self.recorder.get_status().get("session_id", "unknown")
+            log_panel.add_entry(f"Stopping recording before quit: {session_id}")
+
+            try:
+                success = self.recorder.stop_recording()
+                if success:
+                    log_panel.add_entry(f"Recording stopped: {session_id}")
+                else:
+                    log_panel.add_entry("WARNING: Failed to stop recording cleanly")
+            except Exception as e:
+                log_panel.add_entry(f"WARNING: Error stopping recording: {e}")
+
+        # Exit the application
         self.exit()
     
     def action_start_recording(self) -> None:
